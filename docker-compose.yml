@@ -1,0 +1,71 @@
+services:
+  broker:
+    image: docker.io/library/redis:7
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  db:
+    image: docker.io/library/postgres:16
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/consume:/usr/src/paperless/consume
+      - ./data/media:/usr/src/paperless/media
+      - ./data/export:/usr/src/paperless/export
+      - ./data/data:/usr/src/paperless/data
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${POSTGRES_PASSWORD}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD}
+      PAPERLESS_OCR_LANGUAGE: fra
+      PAPERLESS_OCR_LANGUAGES: fra
+      PAPERLESS_TIME_ZONE: Europe/Paris
+      PAPERLESS_FILENAME_FORMAT: "{created_year}-{created_month}_{document_type}_{correspondent}"
+      PAPERLESS_CONSUMER_POLLING: 30
+      PAPERLESS_TIKA_ENABLED: 0
+      PAPERLESS_URL: http://localhost:8000
+
+  paperless-ai:
+    image: clusterzx/paperless-ai:latest
+    restart: unless-stopped
+    depends_on:
+      - webserver
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./paperless-ai/config.yml:/app/config.yml
+      - paperless-ai-data:/app/data
+    environment:
+      PAPERLESS_API_URL: http://webserver:8000/api
+      PAPERLESS_API_TOKEN: ${PAPERLESS_API_TOKEN}
+      AI_PROVIDER: openai
+      OPENAI_API_KEY: ${KIMI_API_KEY}
+      OPENAI_API_BASE: https://api.moonshot.cn/v1
+      OPENAI_MODEL: moonshot-v1-32k
+      PROCESS_PREDEFINED_DOCUMENTS: yes
+      SCAN_INTERVAL: 30
+
+volumes:
+  redisdata:
+  pgdata:
+  paperless-ai-data:

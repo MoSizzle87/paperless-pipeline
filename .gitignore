@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────
+# paperless-pipeline — .gitignore
+# ─────────────────────────────────────────────
+
+# Environnement — jamais commité
+.env
+
+# Données Paperless — jamais commitées
+data/
+data/consume/
+data/media/
+data/export/
+data/data/
+
+# Volumes Docker
+redisdata/
+pgdata/
+paperless-ai-data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Logs
+*.log
+logs/
+
+# Editeurs
+.vscode/
+.idea/
+*.swp
+*.swo
