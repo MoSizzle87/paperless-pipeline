@@ -1,0 +1,181 @@
+# Whitelist canonique des correspondants fréquents de l'admin FR.
+# Chaque entrée : nom canonique + aliases acceptés (toute variante mappée au canonique).
+# Les aliases sont matchés de manière insensible à la casse et aux accents.
+
+# ─────────────── Énergie / Utilities ───────────────
+- canonical: "EDF"
+  aliases: ["Électricité de France", "EDF SA", "EDF Commerce", "E.D.F."]
+
+- canonical: "ENGIE"
+  aliases: ["GDF", "GDF Suez", "Gaz de France", "Engie Home Services"]
+
+- canonical: "Eau de Paris"
+  aliases: ["Régie Eau de Paris"]
+
+- canonical: "Veolia"
+  aliases: ["Veolia Eau", "Veolia Environnement"]
+
+- canonical: "Suez"
+  aliases: ["Suez Environnement", "Lyonnaise des Eaux"]
+
+# ─────────────── Télécom / Internet ───────────────
+- canonical: "Orange"
+  aliases: ["France Télécom", "Sosh"]
+
+- canonical: "SFR"
+  aliases: ["Numericable", "RED by SFR", "RED"]
+
+- canonical: "Free"
+  aliases: ["Free Mobile", "Free Telecom"]
+
+- canonical: "Bouygues Telecom"
+  aliases: ["Bouygues", "B&You"]
+
+# ─────────────── Administrations / Sécurité sociale ───────────────
+- canonical: "CAF"
+  aliases: ["Caisse d'Allocations Familiales", "CAF de Paris", "CAF Paris"]
+
+- canonical: "CPAM"
+  aliases: ["Caisse Primaire d'Assurance Maladie", "Assurance Maladie", "Ameli"]
+
+- canonical: "URSSAF"
+  aliases: ["URSSAF Île-de-France", "Urssaf"]
+
+- canonical: "DGFiP"
+  aliases:
+    - "Direction Générale des Finances Publiques"
+    - "Direction générale des finances publiques"
+    - "Trésor Public"
+    - "Impôts"
+    - "Service des Impôts"
+
+- canonical: "DGI"
+  aliases: ["Direction Générale des Impôts"]
+
+- canonical: "France Travail"
+  aliases: ["Pole Emploi France Travail"]
+
+- canonical: "Pôle Emploi"
+  aliases: ["Pole Emploi"]
+
+- canonical: "ANPE"
+  aliases: []
+
+- canonical: "CNAV"
+  aliases: ["Caisse Nationale d'Assurance Vieillesse", "Assurance Retraite"]
+
+- canonical: "Agirc-Arrco"
+  aliases: ["AGIRC", "ARRCO", "Agirc Arrco"]
+
+- canonical: "MSA"
+  aliases: ["Mutualité Sociale Agricole"]
+
+# ─────────────── Banques ───────────────
+- canonical: "BNP Paribas"
+  aliases: ["BNP", "BNPP"]
+
+- canonical: "LCL"
+  aliases: ["Le Crédit Lyonnais"]
+
+- canonical: "Société Générale"
+  aliases: ["SG", "Societe Generale"]
+
+- canonical: "Crédit Agricole"
+  aliases: ["CA", "Credit Agricole"]
+
+- canonical: "Crédit Mutuel"
+  aliases: ["CM", "Credit Mutuel"]
+
+- canonical: "CIC"
+  aliases: ["Crédit Industriel et Commercial"]
+
+- canonical: "La Banque Postale"
+  aliases: ["LBP", "Banque Postale"]
+
+- canonical: "BoursoBank"
+  aliases: ["Boursorama", "Boursorama Banque"]
+
+- canonical: "Hello bank!"
+  aliases: ["Hello Bank", "Hellobank"]
+
+- canonical: "Revolut"
+  aliases: []
+
+- canonical: "N26"
+  aliases: []
+
+- canonical: "Qonto"
+  aliases: []
+
+# ─────────────── Assurances ───────────────
+- canonical: "MAIF"
+  aliases: []
+
+- canonical: "MAAF"
+  aliases: []
+
+- canonical: "MACIF"
+  aliases: []
+
+- canonical: "Matmut"
+  aliases: []
+
+- canonical: "AXA"
+  aliases: ["AXA France", "AXA Assurances"]
+
+- canonical: "Allianz"
+  aliases: []
+
+- canonical: "Groupama"
+  aliases: []
+
+- canonical: "GMF"
+  aliases: []
+
+- canonical: "MMA"
+  aliases: []
+
+- canonical: "Harmonie Mutuelle"
+  aliases: []
+
+- canonical: "MGEN"
+  aliases: []
+
+- canonical: "Malakoff Humanis"
+  aliases: ["Malakoff Médéric", "Humanis"]
+
+- canonical: "Alan"
+  aliases: []
+
+# ─────────────── Logement / Bailleurs Paris ───────────────
+- canonical: "RIVP"
+  aliases:
+    [
+      "Régie Immobilière de la Ville de Paris",
+      "Regie Immobiliere de la Ville de Paris",
+    ]
+
+- canonical: "Paris Habitat"
+  aliases: ["OPAC", "Paris Habitat OPH"]
+
+- canonical: "Elogie-Siemp"
+  aliases: ["Elogie", "SIEMP"]
+
+- canonical: "ICF Habitat"
+  aliases: ["ICF La Sablière", "ICF"]
+
+- canonical: "3F"
+  aliases: ["Seine-Saints-Denis Habitat", "Immobilière 3F"]
+
+- canonical: "CDC Habitat"
+  aliases: ["SNI", "Société Nationale Immobilière"]
+
+# ─────────────── Transport ───────────────
+- canonical: "SNCF"
+  aliases: ["SNCF Voyageurs", "SNCF Connect"]
+
+- canonical: "RATP"
+  aliases: []
+
+- canonical: "Île-de-France Mobilités"
+  aliases: ["STIF", "Navigo"]

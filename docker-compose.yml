@@ -45,27 +45,27 @@ services:
       PAPERLESS_TIKA_ENABLED: 0
       PAPERLESS_URL: http://localhost:8000
 
-  paperless-ai:
-    image: clusterzx/paperless-ai:latest
+  classifier:
+    build: ./classifier
     restart: unless-stopped
     depends_on:
-      webserver:
-        condition: service_healthy
-    ports:
-      - "8501:3000"
+      - webserver
     volumes:
-      - paperless-ai-data:/app/data
+      - ./logs:/app/logs
+      - ./classifier/src/pipeline/referentials:/app/referentials:ro
     environment:
       PAPERLESS_API_URL: http://webserver:8000/api
       PAPERLESS_API_TOKEN: ${PAPERLESS_API_TOKEN}
-      AI_PROVIDER: custom
-      CUSTOM_AI_BASE_URL: https://api.moonshot.ai/v1
-      CUSTOM_AI_API_KEY: ${KIMI_API_KEY}
-      CUSTOM_AI_MODEL: moonshot-v1-32k
-      PROCESS_PREDEFINED_DOCUMENTS: yes
-      SCAN_INTERVAL: "*/30 * * * *"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LLM_MODEL: claude-sonnet-4-6
+      POLL_INTERVAL_SECONDS: 60
+      CONFIDENCE_THRESHOLD: "0.7"
+      LEVENSHTEIN_THRESHOLD: "0.85"
+      REFERENTIALS_DIR: /app/referentials
+      LOG_LEVEL: INFO
+      LOG_DIR: /app/logs
+      PYTHONUNBUFFERED: "1"
 
 volumes:
   redisdata:
   pgdata:
-  paperless-ai-data:

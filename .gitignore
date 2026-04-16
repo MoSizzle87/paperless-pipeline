@@ -2,28 +2,42 @@
 # paperless-pipeline — .gitignore
 # ─────────────────────────────────────────────
 
-# Environnement — jamais commité
+# Environnement — JAMAIS commité
 .env
+.env.local
+.env.*.local
 
-# Données Paperless — jamais commitées
+# Données Paperless — JAMAIS commitées
 data/
-data/consume/
-data/media/
-data/export/
-data/data/
 
-# Volumes Docker
-redisdata/
-pgdata/
-paperless-ai-data/
+# Logs runtime
+logs/*.jsonl
+logs/*.jsonl.*
+logs/*.log
+!logs/.gitkeep
 
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
 .Python
 *.egg-info/
+.eggs/
+build/
+dist/
+
+# Environnements virtuels Python (dev local hors Docker)
+.venv/
+venv/
+env/
+
+# Caches outils Python
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # macOS
 .DS_Store
@@ -31,12 +45,13 @@ __pycache__/
 .LSOverride
 ._*
 
-# Logs
-*.log
-logs/
-
-# Editeurs
+# Éditeurs
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+
+# uv
+# uv.lock EST commité (fige les versions), ne PAS l'ignorer
+.uv/
