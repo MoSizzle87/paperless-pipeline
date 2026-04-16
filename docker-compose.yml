@@ -49,21 +49,21 @@ services:
     image: clusterzx/paperless-ai:latest
     restart: unless-stopped
     depends_on:
-      - webserver
+      webserver:
+        condition: service_healthy
     ports:
-      - "8501:8501"
+      - "8501:3000"
     volumes:
-      - ./paperless-ai/config.yml:/app/config.yml
       - paperless-ai-data:/app/data
     environment:
       PAPERLESS_API_URL: http://webserver:8000/api
       PAPERLESS_API_TOKEN: ${PAPERLESS_API_TOKEN}
-      AI_PROVIDER: openai
-      OPENAI_API_KEY: ${KIMI_API_KEY}
-      OPENAI_API_BASE: https://api.moonshot.cn/v1
-      OPENAI_MODEL: moonshot-v1-32k
+      AI_PROVIDER: custom
+      CUSTOM_AI_BASE_URL: https://api.moonshot.ai/v1
+      CUSTOM_AI_API_KEY: ${KIMI_API_KEY}
+      CUSTOM_AI_MODEL: moonshot-v1-32k
       PROCESS_PREDEFINED_DOCUMENTS: yes
-      SCAN_INTERVAL: 30
+      SCAN_INTERVAL: "*/30 * * * *"
 
 volumes:
   redisdata:
