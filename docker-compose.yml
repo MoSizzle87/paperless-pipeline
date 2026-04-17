@@ -53,6 +53,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./classifier/src/pipeline/referentials:/app/referentials:ro
+      - ./data/export:/app/export
     environment:
       PAPERLESS_API_URL: http://webserver:8000/api
       PAPERLESS_API_TOKEN: ${PAPERLESS_API_TOKEN}

@@ -8,6 +8,8 @@ system:
     color: "#f39c12" # orange
   - name: "ai:failed"
     color: "#e74c3c" # rouge
+  - name: "digiposte:uploaded"
+    color: "#3498db"
 
 business:
   - name: "energie"

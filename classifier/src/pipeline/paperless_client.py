@@ -105,6 +105,13 @@ class PaperlessClient:
         r = self._client.patch(f"/documents/{doc_id}/", json=payload)
         r.raise_for_status()
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def download_document(self, doc_id: int) -> bytes:
+        """Télécharge le PDF original d'un document depuis Paperless."""
+        r = self._client.get(f"/documents/{doc_id}/download/", params={"original": "true"})
+        r.raise_for_status()
+        return r.content
+
     def add_tag(self, doc_id: int, tag_id: int) -> None:
         """Ajoute un tag à un document sans toucher aux autres tags."""
         doc = self.get_document(doc_id)

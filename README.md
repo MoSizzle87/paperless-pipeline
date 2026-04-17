@@ -1,325 +1,459 @@
 # 📄 paperless-pipeline
 
-Pipeline automatisé de numérisation, classification et renommage de documents
-administratifs français via Paperless-ngx + Paperless-AI + Kimi K2.5.
+Pipeline automatisé de numérisation, OCR, classification et renommage de documents
+administratifs français, avec export prêt à l'emploi vers Digiposte.
+
+**Stack** : Paperless-ngx + OCR Tesseract + Claude Sonnet 4.6 (Anthropic) + Python.
 
 ---
+
+## 🎯 Objectif
+
+Numériser 10+ années d'archives administratives personnelles (300+ documents),
+les classifier automatiquement avec une précision élevée, et les pousser dans
+Digiposte dans une arborescence propre.
 
 ## 🧠 Architecture
 
 ```
-DS-940DW
-↓ (scan vers dossier consume)
+Scanner Brother DS-940DW
+       ↓ (scan PDF)
 data/consume/
-↓
-Paperless-ngx (OCR Tesseract — français)
-↓
-Paperless-AI (Kimi K2.5 — classification + renommage)
-↓
-data/export/
-├── documents classés et renommés
-└── a-verifier/   ← confidence < 0.7
+       ↓ (polling 30s)
+Paperless-ngx (OCR Tesseract français)
+       ↓ (API REST)
+classifier (Python + Claude Sonnet 4.6)
+       ↓
+Paperless-ngx (métadonnées : type, correspondent, tags, date)
+       ↓ (make export-digiposte)
+data/export/digiposte/
+├── Facture/
+├── Bulletin-de-paie/
+├── Quittance-de-loyer/
+└── ...                    ← uploadé manuellement dans Digiposte
 ```
+
+Le pipeline classifie chaque document selon :
+
+- **23 types** de documents admin (Facture, Bulletin de paie, Document fiscal, etc.)
+- **55 correspondants canoniques** (EDF, CAF, RIVP, DGFiP, banques, assureurs...)
+- **Tags métier** (energie, loyer, sante, impot...)
+- **Date** extraite du document (règles de priorité : émission, période, signature)
+- **Confidence** calibrée (0-1), pilotant le tag système qui classe le doc
+
+### Tags système
+
+| Tag | Signification |
+|---|---|
+| `ai:processed` | Classifié avec confidence ≥ 0.7 — prêt à l'export |
+| `ai:a-verifier` | Classifié avec confidence < 0.7 — à valider manuellement |
+| `ai:failed` | Échec de classification — à reprocesser |
+| `digiposte:uploaded` | Déjà uploadé dans Digiposte — exclu du prochain export |
 
 ---
 
 ## 📦 Prérequis
 
-- Docker + Docker Compose
-- Une clé API Kimi K2.5 (Moonshot)
-- Python 3 (pour le script export)
+- Docker + Docker Compose (Colima, OrbStack ou Docker Desktop)
+- `uv` (gestionnaire Python moderne) : `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Une clé API Anthropic : [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
+- Python 3.12+ (pour le dev local, optionnel)
 
----
-
-## 🚀 Installation en 5 minutes
+## 🚀 Installation
 
 ### 1. Cloner le repo
 
 ```bash
-git clone git@github.com:ton-user/paperless-pipeline.git
+git clone git@github.com:MoSizzle87/paperless-pipeline.git
 cd paperless-pipeline
 ```
 
-### 2. Créer le fichier `.env`
+### 2. Générer le lockfile Python
+
+```bash
+cd classifier
+uv lock
+cd ..
+```
+
+### 3. Créer le `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-Ouvre `.env` et remplis chaque valeur.
-
-#### Générer des mots de passe solides
-
-Lance ces commandes dans ton terminal et colle les résultats dans `.env` :
+Édite `.env` et remplis les valeurs :
 
 ```bash
-# POSTGRES_PASSWORD
-openssl rand -base64 24
-
-# PAPERLESS_SECRET_KEY (doit être longue)
-openssl rand -base64 48
-
-# PAPERLESS_ADMIN_PASSWORD
-openssl rand -base64 16
+# Génère les mots de passe avec :
+openssl rand -base64 24   # POSTGRES_PASSWORD
+openssl rand -base64 48   # PAPERLESS_SECRET_KEY
+openssl rand -base64 16   # PAPERLESS_ADMIN_PASSWORD
 ```
 
-> ⚠️ Note ces valeurs dans un gestionnaire de mots de passe
-> (Bitwarden, Apple Keychain, etc.) — tu en auras besoin plus tard.
+La clé Anthropic se récupère sur [console.anthropic.com](https://console.anthropic.com/settings/keys).
 
-#### Récupérer ta clé API Kimi K2.5
-
-1. Va sur [platform.moonshot.cn](https://platform.moonshot.cn)
-2. Connecte-toi → **API Keys** → **Create API Key**
-3. Copie la clé générée (elle ne s'affiche qu'une seule fois)
-4. Colle-la dans `.env` :
+### 4. Premier démarrage
 
 ```bash
-KIMI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+# Démarre broker, db, webserver (pas encore le classifier)
+docker compose up -d broker db webserver
+
+# Attends ~30s que Paperless-ngx initialise sa base
+docker compose logs -f webserver
+# Ctrl+C quand tu vois "Starting Gunicorn"
 ```
 
-> Pas de guillemets — la valeur brute suffit.
+### 5. Récupérer le token API Paperless
 
-### 3. Lancer les containers
+1. Ouvre http://localhost:8000 et connecte-toi avec l'admin
+2. Profil utilisateur → Auth Token → Generate
+3. Copie le token dans `.env` à la ligne `PAPERLESS_API_TOKEN`
 
-```bash
-docker compose up -d
-```
-
-Vérifie que tout tourne :
+### 6. Build du classifier et démarrage complet
 
 ```bash
-docker compose ps
-```
+# Build du service Python
+docker compose build classifier
 
-Tu dois voir 4 services `running` : `broker`, `db`, `webserver`, `paperless-ai`.
+# Démarre tout
+make up
 
-### 4. Créer le token API Paperless
+# Initialise le référentiel dans Paperless (23 types, 28 tags, 55 correspondants)
+make init-referential
 
-C'est la seule étape manuelle — à faire une seule fois.
-
-1. Ouvre [http://localhost:8000](http://localhost:8000)
-2. Connecte-toi avec `PAPERLESS_ADMIN_USER` / `PAPERLESS_ADMIN_PASSWORD`
-3. Va dans **Settings** → **API Tokens** → **Create Token**
-4. Copie le token généré
-5. Colle-le dans `.env` :
-
-```bash
-PAPERLESS_API_TOKEN=ton_token_ici
-```
-
-6. Redémarre les containers pour prise en compte :
-
-```bash
-docker compose restart
+# Vérifie que le classifier tourne sans erreur
+make logs
+# Tu dois voir "Poller démarré..." puis des polls toutes les 60s
 ```
 
 ---
 
-## ⚡ Aliases — démarrage rapide
+## ⚡ Alias shell recommandés
 
-Ajoute ces aliases dans ton `~/.zshrc` pour démarrer et arrêter
-le pipeline en une commande :
-
-```bash
-# paperless-pipeline
-alias paperless-start='cd ~/Projects/paperless-pipeline && docker compose up -d && echo "✅ Paperless démarré sur http://localhost:8000"'
-alias paperless-stop='cd ~/Projects/paperless-pipeline && docker compose down && echo "🛑 Paperless arrêté"'
-```
-
-> Adapte le chemin `~/Projects/paperless-pipeline` à ton setup.
-
-Recharge ton shell :
+Dans ton `~/.zshrc` (ou `~/.bashrc`) :
 
 ```bash
-source ~/.zshrc
-```
+# Fonctions d'orchestration paperless-pipeline
+unalias paperless-start paperless-stop paperless-status 2>/dev/null
 
-Utilisation :
+paperless-start() {
+  local project_dir="$HOME/paperless-pipeline"
+  if ! colima status &>/dev/null; then
+    echo "🐳 Démarrage de Colima..."
+    colima start || return 1
+  fi
+  (cd "$project_dir" && docker compose up -d) || return 1
+  echo "✅ Paperless démarré sur http://localhost:8000"
+}
 
-```bash
-paperless-start   # démarre tous les containers
-paperless-stop    # arrête proprement
+paperless-stop() {
+  local project_dir="$HOME/paperless-pipeline"
+  (cd "$project_dir" && docker compose down)
+  if colima status &>/dev/null; then
+    colima stop
+  fi
+  echo "✅ Tout est arrêté"
+}
+
+paperless-status() {
+  local project_dir="$HOME/paperless-pipeline"
+  if colima status &>/dev/null 2>&1; then
+    echo "🐳 Colima : running"
+  else
+    echo "🐳 Colima : stopped"
+    return
+  fi
+  echo "📦 Containers :"
+  (cd "$project_dir" && docker compose ps --format "  {{.Service}}: {{.State}}")
+}
 ```
 
 ---
 
-## 📥 Workflow de numérisation
+## 🔄 Workflow quotidien
 
-### 1. Scanner tes documents
+### Étape 1 — Scanner
 
-Configure ton Brother DS-940DW pour déposer les scans
-directement dans `data/consume/` :
+Configure ton scanner (exemple Brother DS-940DW) pour déposer directement
+dans `data/consume/` :
 
-- Format : **PDF**
-- Résolution : **300 DPI minimum**
-- Mode : **Noir & Blanc** pour les docs texte, **Couleur** pour les docs avec logos
+- Format : PDF
+- Résolution : 300 DPI
+- Mode : Noir et blanc pour les docs texte, couleur pour les logos importants
 
-### 2. Laisser Paperless traiter
+Dès qu'un PDF arrive, Paperless le détecte (polling 30s), lance l'OCR, puis
+le classifier le traite (polling 60s). Délai total moyen : **1 à 2 minutes par doc**.
 
-Dès qu'un fichier apparaît dans `data/consume/` :
+### Étape 2 — Vérifier les docs à valider
 
-1. **Paperless-ngx** lance l'OCR Tesseract en français
-2. **Paperless-AI** envoie le texte extrait à Kimi K2.5
-3. Kimi retourne un JSON structuré (titre, type, correspondant, tags, confidence)
-4. Paperless applique les métadonnées et renomme le fichier
+Dans l'UI Paperless (http://localhost:8000), filtre sur le tag `ai:a-verifier`.
+Ce sont les documents que Claude a classifiés avec une confidence < 0.7.
 
-Délai moyen par document : **1 à 2 minutes**.
+Pour chacun, vérifie / corrige et retire le tag `ai:a-verifier`.
 
-### 3. Exporter les documents traités
+S'il y a eu des échecs (`ai:failed`), relance :
 
 ```bash
-chmod +x scripts/export.sh
-./scripts/export.sh
+make reprocess-failed
 ```
 
-Les documents sont exportés dans `data/export/` :
+### Étape 3 — Export vers Digiposte
+
+```bash
+make export-digiposte
 ```
-data/export/
-├── 2019-01_facture_edf.pdf
-├── 2022-03_bulletin-de-paie_entreprise-xyz.pdf
-├── 2020-01_document-fiscal_dgi.pdf
-└── a-verifier/
-└── ...   ← confidence < 0.7, à traiter manuellement
+
+Génère une arborescence dans `data/export/digiposte/` :
+
+```
+data/export/digiposte/
+├── Facture/
+│   ├── 2019-01_Facture_EDF.pdf
+│   ├── 2019-02_Facture_EDF.pdf
+│   └── ...
+├── Quittance-de-loyer/
+├── Bulletin-de-paie/
+└── index.csv
+```
+
+Le script filtre automatiquement les documents déjà taggés `digiposte:uploaded`
+et ne génère que les nouveautés.
+
+### Étape 4 — Upload dans Digiposte
+
+1. Ouvre Digiposte dans ton navigateur
+2. Coffre → Ajouter un élément → Importer un dossier
+3. Sélectionne un dossier (par exemple `Facture/`) depuis Finder
+4. Digiposte crée le dossier côté coffre et importe les PDFs à l'intérieur
+5. Recommence pour chaque catégorie
+
+⚠️ **Ne pas uploader un ZIP** : Digiposte stocke alors un fichier ZIP unique
+non-visualisable. Toujours uploader les dossiers directement.
+
+### Étape 5 — Marquer comme uploadé puis archiver
+
+Une fois TOUS les dossiers uploadés dans Digiposte :
+
+```bash
+# Option 1 : tagger + archiver en une commande
+make archive-and-mark
+
+# Option 2 : séparément si tu veux vérifier entre les deux
+make mark-uploaded
+make archive-digiposte
+```
+
+`digiposte/` est vidé, les fichiers sont archivés dans `digiposte/archive/<timestamp>/`,
+et les docs Paperless portent le tag `digiposte:uploaded` → ils ne seront plus
+exportés au prochain run.
+
+---
+
+## 🛠️ Cibles Makefile
+
+```
+make help                  Liste complète des commandes
+
+# Stack & maintenance
+make up                    Démarre le stack
+make down                  Arrête le stack
+make clean                 Arrête + supprime tous les volumes (DESTRUCTIF)
+make build                 Rebuild l'image classifier
+make logs                  Tail des logs
+make shell                 Shell dans le container classifier
+make init-referential      (Re-)crée le référentiel Paperless (idempotent)
+make backup                Export natif Paperless-ngx des docs+métadonnées
+
+# Reprocessing
+make reprocess-failed      Relance les docs taggés ai:failed
+make reprocess-review      Relance les docs taggés ai:a-verifier
+
+# Export Digiposte
+make export-digiposte      Exporte les docs ai:processed
+make export-digiposte-all  Idem + inclut les ai:a-verifier
+make mark-uploaded         Tagge digiposte:uploaded les docs présents dans digiposte/
+make archive-digiposte     Déplace digiposte/* vers digiposte/archive/<timestamp>/
+make archive-and-mark      Tagge puis archive en une commande
+make trash-archives        Supprime toutes les archives (confirmation requise)
+
+# Stats
+make stats                 Résumé depuis le JSONL (coût, volumes, confidence)
 ```
 
 ---
 
 ## 📂 Structure du repo
+
 ```
 paperless-pipeline/
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
-├── paperless-ai/
-│   └── config.yml
-├── scripts/
-│   └── export.sh
-└── README.md
+├── Makefile
+├── README.md
+├── classifier/
+│   ├── Dockerfile
+│   ├── pyproject.toml
+│   ├── uv.lock
+│   ├── src/pipeline/
+│   │   ├── cli.py                   # Entry point (run, reprocess, stats)
+│   │   ├── config.py                # Pydantic Settings
+│   │   ├── schemas.py               # Modèles Pydantic I/O
+│   │   ├── prompt.py                # Prompt système Claude + tool use
+│   │   ├── llm_client.py            # SDK Anthropic avec prompt caching
+│   │   ├── paperless_client.py      # Client REST Paperless-ngx
+│   │   ├── normalizer.py            # Slugify + fuzzy matching Levenshtein
+│   │   ├── referential.py           # Whitelist canonique + création auto
+│   │   ├── classifier.py            # Orchestration du traitement d'un doc
+│   │   ├── poller.py                # Boucle principale
+│   │   ├── logging_setup.py         # Console + JSONL rotatif
+│   │   └── referentials/
+│   │       ├── correspondents_canonical.yaml
+│   │       ├── document_types.yaml
+│   │       └── tags.yaml
+│   └── scripts/
+│       ├── init_referential.py      # One-shot init Paperless
+│       ├── export_digiposte.py      # Export vers arborescence Digiposte
+│       ├── archive_digiposte.py     # Déplacement vers archive/<timestamp>/
+│       └── mark_uploaded.py         # Tagging bulk digiposte:uploaded
+├── data/                            # (gitignored)
+│   ├── consume/                     # Dépôt des PDFs à traiter
+│   ├── media/                       # Stockage interne Paperless (source de vérité)
+│   ├── export/digiposte/            # Arborescence prête pour Digiposte
+│   └── data/                        # Index de recherche Paperless
+└── logs/
+    └── pipeline.jsonl               # Audit log rotatif
 ```
+
 ---
 
-## 🔧 Configuration avancée
+## 🎛️ Configuration avancée
 
-### Changer le seuil de confidence
+### Ajuster le seuil de confidence
 
-Dans `scripts/export.sh`, modifie :
+Dans `docker-compose.yml`, service `classifier` :
 
-```bash
-MIN_CONFIDENCE=0.7
+```yaml
+      CONFIDENCE_THRESHOLD: "0.7"
 ```
 
-- `0.9` → très strict, beaucoup de docs dans `a-verifier/`
-- `0.5` → permissif, moins de vérification manuelle
+- `0.9` : très strict, beaucoup de docs en `ai:a-verifier`
+- `0.7` : équilibré (défaut)
+- `0.5` : permissif, peu de review manuelle
 
 ### Changer de modèle LLM
 
-Dans `docker-compose.yml` et `paperless-ai/config.yml` :
-
 ```yaml
-OPENAI_MODEL: moonshot-v1-32k   # Kimi K2.5 — défaut
+      LLM_MODEL: claude-sonnet-4-6        # défaut, rapport qualité/prix optimal
+      # LLM_MODEL: claude-opus-4-7         # plus précis, 5x plus cher
+      # LLM_MODEL: claude-haiku-4-5        # moins cher mais précision en baisse
 ```
 
-#### Basculer sur Claude (via LiteLLM)
+### Ajouter un correspondant canonique
 
-Si tu veux utiliser Claude à la place de Kimi, il faut ajouter
-un proxy LiteLLM car l'API Anthropic n'est pas nativement
-compatible OpenAI. Non nécessaire avec Kimi.
-
-### Langue OCR
-
-Définie dans `docker-compose.yml` :
+Édite `classifier/src/pipeline/referentials/correspondents_canonical.yaml`,
+ajoute une entrée avec alias :
 
 ```yaml
-PAPERLESS_OCR_LANGUAGE: fra
+- canonical: "Nouveau Correspondant"
+  aliases: ["Variante 1", "Autre variante"]
 ```
 
-Pour des documents multilingues (ex. français + anglais) :
+Puis re-init (idempotent) :
 
-```yaml
-PAPERLESS_OCR_LANGUAGE: fra+eng
+```bash
+make init-referential
+docker compose restart classifier
 ```
+
+### Désactiver la création auto des correspondants
+
+Dans `classifier/src/pipeline/referential.py`, méthode `resolve_correspondent`,
+remplacer la branche de création Classe B par une exception. Le pipeline taguera
+alors `ai:failed` les docs avec un correspondant non-whitelisté.
 
 ---
 
-## 🔒 Sécurité
+## 💰 Coûts estimés
 
-- Le fichier `.env` n'est **jamais commité** (voir `.gitignore`)
-- Les données (`data/`) ne sont **jamais commitées**
-- Le pipeline tourne entièrement en **local** — aucun document
-  ne transite vers un service tiers, seul le texte OCRisé
-  est envoyé à l'API Kimi pour classification
-- Hébergement Kimi : serveurs Moonshot AI (Chine)
+Avec Claude Sonnet 4.6 + prompt caching Anthropic :
 
-> Si la confidentialité des données OCRisées est critique
-> (ex. documents médicaux, jugements), envisage un modèle
-> local via Ollama à la place de Kimi.
+- **1er doc (cache miss)** : ~$0.017
+- **Docs suivants (cache hit)** : ~$0.005 à $0.008
+
+Pour **300 documents d'archive initiale** : ~$3 à $5.
+Pour un **flux continu** de ~500 docs/an : ~$8 à $10/an.
+
+---
+
+## 🔒 Sécurité et confidentialité
+
+- `.env` n'est JAMAIS commité (voir `.gitignore`)
+- Le dossier `data/` n'est JAMAIS commité
+- Tout le pipeline tourne **localement** (OCR + Paperless + orchestration)
+- Seul le **texte OCR extrait** est envoyé à l'API Anthropic pour classification
+- Les PDFs originaux ne quittent jamais ta machine
+- Hébergement Anthropic : US / EU selon région
+
+Pour un usage strict « 100% local » (documents très sensibles), remplacer Claude
+par un modèle Ollama local (Qwen 2.5 72B, Llama 3.3) avec précision légèrement
+inférieure sur le français admin.
 
 ---
 
 ## 🐛 Dépannage
 
-### Les containers ne démarrent pas
+### Le classifier crashe au démarrage avec « Tag ai:processed introuvable »
+
+Le référentiel n'a pas été initialisé. Lance :
 
 ```bash
-docker compose logs webserver
-docker compose logs paperless-ai
+make init-referential
+docker compose restart classifier
 ```
 
-### Un document n'est pas traité
+### Un doc reste dans `data/consume/` sans être traité
 
-Vérifie que le fichier est bien en PDF et non corrompu :
+Vérifie les logs Paperless :
 
 ```bash
-ls -la data/consume/
+docker compose logs webserver --tail 50
 ```
 
-### Paperless-AI ne classe pas les documents
+Causes fréquentes : PDF corrompu, mot de passe sur le PDF, format non-supporté.
 
-Vérifie que le token API est bien renseigné dans `.env`
-et que les containers ont été redémarrés après :
+### Un doc est classé en `ai:failed`
+
+Colle la ligne JSONL correspondante :
 
 ```bash
-docker compose restart paperless-ai
+grep '"status":"failed"' logs/pipeline.jsonl | tail -1 | jq .
 ```
 
-### Réinitialiser complètement
+Le champ `error` te donne la cause (OCR vide, schéma LLM invalide, push Paperless échoué...).
+
+Tu peux relancer après avoir compris/corrigé :
 
 ```bash
-docker compose down -v   # supprime aussi les volumes
-docker compose up -d
+make reprocess-failed
 ```
 
-> ⚠️ Cette commande supprime toutes les données traitées.
+### Reset complet
 
----
-
-## 📋 Récapitulatif des catégories de documents
-
-| Catégorie | Exemples |
-|---|---|
-| Facture | EDF, Orange, SFR, eau |
-| Bulletin de paie | Fiche de salaire mensuelle |
-| Document fiscal | Avis d'imposition, déclaration |
-| Relevé bancaire | Extrait de compte |
-| Assurance | Attestation, contrat |
-| Document médical | Compte-rendu, analyse |
-| Mutuelle / Remboursement santé | Décompte CPAM, mutuelle |
-| Contrat | Bail, CDI, CDD |
-| Quittance de loyer | Reçu mensuel |
-| Document employeur | Attestation, promesse d'embauche |
-| Document Pôle Emploi / France Travail | Attestation, convocation |
-| Titre d'identité | CNI, passeport |
-| Carte grise / Document véhicule | Certificat d'immatriculation |
-| Acte d'état civil | Naissance, mariage, PACS |
-| Diplôme | Bac, licence, master |
-| Bulletin scolaire | Relevé de notes trimestriel |
-| Document scolaire | Certificat de scolarité |
-| Jugement / Acte juridique | Décision tribunal |
-| Devis / Bon de commande | Devis artisan, commande |
-| Courrier administratif | CAF, préfecture, mairie |
+```bash
+make clean    # supprime TOUTES les données (confirmation requise)
+```
 
 ---
 
 ## 📜 Licence
 
-MIT — usage personnel.
+MIT — usage personnel et pédagogique.
+
+## 🙏 Crédits
+
+- [Paperless-ngx](https://docs.paperless-ngx.com/) — système de gestion documentaire
+- [Anthropic Claude](https://www.anthropic.com/claude) — classification LLM
+- [uv](https://docs.astral.sh/uv/) — gestionnaire Python moderne
+- [Docker](https://www.docker.com/) + [Colima](https://github.com/abiosoft/colima) ou [OrbStack](https://orbstack.dev/)
