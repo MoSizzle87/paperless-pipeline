@@ -1,5 +1,5 @@
 .PHONY: help up down logs build init-referential reprocess-failed reprocess-review \
-        export export-all archive mark-exported archive-and-mark trash-archives \
+        export export-all archive mark-exported archive-and-mark trash-archives clean-media \
         stats shell backup clean lint format test
 
 help:
@@ -27,11 +27,13 @@ help:
 	@echo "    archive              Move exported documents to archive/<timestamp>/"
 	@echo "    archive-and-mark     Mark then archive in one command"
 	@echo "    trash-archives       Delete all archives (with confirmation)"
+	@echo "    clean-media          Delete all physical document files (DB preserved)"
 	@echo ""
 	@echo "  Quality:"
 	@echo "    lint                 Run ruff linter"
 	@echo "    format               Run ruff formatter"
 	@echo "    test                 Run pytest"
+
 
 up:
 	docker compose up -d
@@ -95,6 +97,15 @@ trash-archives:
 	@read -p "Confirm by typing 'yes': " confirm && [ "$$confirm" = "yes" ] || (echo "Cancelled." && exit 1)
 	rm -rf ./data/export/archive
 	@echo "Archives deleted"
+
+clean-media:
+	@echo "WARNING: This will permanently delete all document files from Paperless storage."
+	@echo "         The database is preserved — only physical files are removed."
+	@read -p "Confirm by typing 'yes': " confirm && [ "$$confirm" = "yes" ] || (echo "Cancelled." && exit 1)
+	rm -rf ./data/media/documents/originals/*
+	rm -rf ./data/media/documents/archive/*
+	rm -rf ./data/media/documents/thumbnails/*
+	@echo "Media files deleted"
 
 stats:
 	docker compose exec classifier python -m filethat.cli stats
