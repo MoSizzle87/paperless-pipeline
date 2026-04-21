@@ -1,459 +1,244 @@
-# 📄 paperless-pipeline
+# filethat
 
-Pipeline automatisé de numérisation, OCR, classification et renommage de documents
-administratifs français, avec export prêt à l'emploi vers Digiposte.
+**Turn your document chaos into a structured archive — powered by LLMs.**
 
-**Stack** : Paperless-ngx + OCR Tesseract + Claude Sonnet 4.6 (Anthropic) + Python.
+filethat is an open-source pipeline that classifies administrative documents
+automatically. It connects to [Paperless-ngx](https://docs.paperless-ngx.com/),
+reads OCR-extracted text, calls an LLM to extract structured metadata, and
+writes it back — so every document gets a title, a date, a correspondent, and
+a type, without you lifting a finger.
 
----
-
-## 🎯 Objectif
-
-Numériser 10+ années d'archives administratives personnelles (300+ documents),
-les classifier automatiquement avec une précision élevée, et les pousser dans
-Digiposte dans une arborescence propre.
-
-## 🧠 Architecture
-
-```
-Scanner Brother DS-940DW
-       ↓ (scan PDF)
-data/consume/
-       ↓ (polling 30s)
-Paperless-ngx (OCR Tesseract français)
-       ↓ (API REST)
-classifier (Python + Claude Sonnet 4.6)
-       ↓
-Paperless-ngx (métadonnées : type, correspondent, tags, date)
-       ↓ (make export-digiposte)
-data/export/digiposte/
-├── Facture/
-├── Bulletin-de-paie/
-├── Quittance-de-loyer/
-└── ...                    ← uploadé manuellement dans Digiposte
-```
-
-Le pipeline classifie chaque document selon :
-
-- **23 types** de documents admin (Facture, Bulletin de paie, Document fiscal, etc.)
-- **55 correspondants canoniques** (EDF, CAF, RIVP, DGFiP, banques, assureurs...)
-- **Tags métier** (energie, loyer, sante, impot...)
-- **Date** extraite du document (règles de priorité : émission, période, signature)
-- **Confidence** calibrée (0-1), pilotant le tag système qui classe le doc
-
-### Tags système
-
-| Tag | Signification |
-|---|---|
-| `ai:processed` | Classifié avec confidence ≥ 0.7 — prêt à l'export |
-| `ai:a-verifier` | Classifié avec confidence < 0.7 — à valider manuellement |
-| `ai:failed` | Échec de classification — à reprocesser |
-| `digiposte:uploaded` | Déjà uploadé dans Digiposte — exclu du prochain export |
+[![CI](https://github.com/mogassama/filethat/actions/workflows/ci.yml/badge.svg)](https://github.com/mogassama/filethat/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
-## 📦 Prérequis
-
-- Docker + Docker Compose (Colima, OrbStack ou Docker Desktop)
-- `uv` (gestionnaire Python moderne) : `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- Une clé API Anthropic : [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
-- Python 3.12+ (pour le dev local, optionnel)
-
-## 🚀 Installation
-
-### 1. Cloner le repo
+## Quick start
 
 ```bash
-git clone git@github.com:MoSizzle87/paperless-pipeline.git
-cd paperless-pipeline
+git clone https://github.com/mogassama/filethat.git
+cd filethat
+cp .env.example .env        # fill in your API keys
+make up                     # start Paperless-ngx + classifier
+make init-referential       # create document types, tags and correspondents
 ```
 
-### 2. Générer le lockfile Python
+Open http://localhost:8000, drop a PDF into the consume folder, and watch it
+get classified automatically.
 
-```bash
-cd classifier
-uv lock
-cd ..
+---
+
+## Features
+
+- **Multi-LLM** — works with Anthropic Claude and OpenAI GPT out of the box.
+  Add any provider by implementing a single interface.
+- **Multilingual** — ships with French and English system prompts. Configure
+  prompt language and export language independently.
+- **Structured output** — uses tool use / function calling to enforce a strict
+  JSON schema. No prompt hacks, no fragile parsing.
+- **Prompt caching** — Anthropic prompt caching cuts input token costs by ~90%
+  on large batches.
+- **Hybrid entity resolution** — canonical whitelist (Class A) for known
+  organisations + Levenshtein auto-creation (Class B) for new ones.
+- **Idempotent** — every script and operation is safe to re-run.
+- **Preset-based config** — swap country or domain by pointing to a different
+  YAML directory. `config/fr-admin/` ships with the project.
+- **Export workflow** — export classified documents to a structured folder
+  hierarchy, mark them as exported, and archive them in one command.
+
+---
+
+## Architecture
+
+```
+┌─────────────────┐     OCR text      ┌─────────────────┐     tool use / fn call
+│  Paperless-ngx  │ ────────────────► │    filethat     │ ──────────────────────►  LLM
+│  (webserver)    │                   │   (classifier)  │
+│                 │ ◄──────────────── │                 │ ◄──────────────────────
+└─────────────────┘   PATCH metadata  └─────────────────┘     structured output
 ```
 
-### 3. Créer le `.env`
+The classifier polls Paperless-ngx every 60 seconds, fetches documents that
+have not been processed yet, and classifies them one by one. Each document gets:
+
+- a **title** (`Invoice EDF January 2024`)
+- a **date** (ISO format, extracted from the document)
+- a **correspondent** (issuing organisation)
+- a **document type** (one of 23 stable categories)
+- **tags** (thematic labels)
+- a **confidence score** (≥ 0.7 → `ai:processed`, < 0.7 → `ai:to-check`)
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed explanation of every
+design decision.
+
+---
+
+## Installation
+
+### Prerequisites
+
+- Docker + Colima (or any Docker-compatible runtime)
+- An API key for Anthropic or OpenAI
+
+### Setup
 
 ```bash
+git clone https://github.com/mogassama/filethat.git
+cd filethat
 cp .env.example .env
 ```
 
-Édite `.env` et remplis les valeurs :
+Edit `.env` and fill in:
 
 ```bash
-# Génère les mots de passe avec :
-openssl rand -base64 24   # POSTGRES_PASSWORD
-openssl rand -base64 48   # PAPERLESS_SECRET_KEY
-openssl rand -base64 16   # PAPERLESS_ADMIN_PASSWORD
+PAPERLESS_ADMIN_USER=admin
+PAPERLESS_ADMIN_PASSWORD=<your password>
+PAPERLESS_SECRET_KEY=<openssl rand -base64 48>
+POSTGRES_PASSWORD=<openssl rand -base64 24>
+PAPERLESS_API_TOKEN=<retrieved after first startup — see below>
+LLM_PROVIDER=anthropic          # or: openai
+LLM_MODEL=claude-sonnet-4-6     # or: gpt-4o
+LLM_API_KEY=<your API key>
 ```
 
-La clé Anthropic se récupère sur [console.anthropic.com](https://console.anthropic.com/settings/keys).
-
-### 4. Premier démarrage
+Start the stack:
 
 ```bash
-# Démarre broker, db, webserver (pas encore le classifier)
-docker compose up -d broker db webserver
-
-# Attends ~30s que Paperless-ngx initialise sa base
-docker compose logs -f webserver
-# Ctrl+C quand tu vois "Starting Gunicorn"
-```
-
-### 5. Récupérer le token API Paperless
-
-1. Ouvre http://localhost:8000 et connecte-toi avec l'admin
-2. Profil utilisateur → Auth Token → Generate
-3. Copie le token dans `.env` à la ligne `PAPERLESS_API_TOKEN`
-
-### 6. Build du classifier et démarrage complet
-
-```bash
-# Build du service Python
-docker compose build classifier
-
-# Démarre tout
 make up
-
-# Initialise le référentiel dans Paperless (23 types, 28 tags, 55 correspondants)
-make init-referential
-
-# Vérifie que le classifier tourne sans erreur
-make logs
-# Tu dois voir "Poller démarré..." puis des polls toutes les 60s
 ```
 
----
-
-## ⚡ Alias shell recommandés
-
-Dans ton `~/.zshrc` (ou `~/.bashrc`) :
+Retrieve your Paperless API token at http://localhost:8000 → user profile →
+Auth Token → Generate or http://localhost:8000/admin/authtoken/tokenproxy/
+— click your token entry to view or regenerate it. Add it to `.env`, then:
 
 ```bash
-# Fonctions d'orchestration paperless-pipeline
-unalias paperless-start paperless-stop paperless-status 2>/dev/null
-
-paperless-start() {
-  local project_dir="$HOME/paperless-pipeline"
-  if ! colima status &>/dev/null; then
-    echo "🐳 Démarrage de Colima..."
-    colima start || return 1
-  fi
-  (cd "$project_dir" && docker compose up -d) || return 1
-  echo "✅ Paperless démarré sur http://localhost:8000"
-}
-
-paperless-stop() {
-  local project_dir="$HOME/paperless-pipeline"
-  (cd "$project_dir" && docker compose down)
-  if colima status &>/dev/null; then
-    colima stop
-  fi
-  echo "✅ Tout est arrêté"
-}
-
-paperless-status() {
-  local project_dir="$HOME/paperless-pipeline"
-  if colima status &>/dev/null 2>&1; then
-    echo "🐳 Colima : running"
-  else
-    echo "🐳 Colima : stopped"
-    return
-  fi
-  echo "📦 Containers :"
-  (cd "$project_dir" && docker compose ps --format "  {{.Service}}: {{.State}}")
-}
-```
-
----
-
-## 🔄 Workflow quotidien
-
-### Étape 1 — Scanner
-
-Configure ton scanner (exemple Brother DS-940DW) pour déposer directement
-dans `data/consume/` :
-
-- Format : PDF
-- Résolution : 300 DPI
-- Mode : Noir et blanc pour les docs texte, couleur pour les logos importants
-
-Dès qu'un PDF arrive, Paperless le détecte (polling 30s), lance l'OCR, puis
-le classifier le traite (polling 60s). Délai total moyen : **1 à 2 minutes par doc**.
-
-### Étape 2 — Vérifier les docs à valider
-
-Dans l'UI Paperless (http://localhost:8000), filtre sur le tag `ai:a-verifier`.
-Ce sont les documents que Claude a classifiés avec une confidence < 0.7.
-
-Pour chacun, vérifie / corrige et retire le tag `ai:a-verifier`.
-
-S'il y a eu des échecs (`ai:failed`), relance :
-
-```bash
-make reprocess-failed
-```
-
-### Étape 3 — Export vers Digiposte
-
-```bash
-make export-digiposte
-```
-
-Génère une arborescence dans `data/export/digiposte/` :
-
-```
-data/export/digiposte/
-├── Facture/
-│   ├── 2019-01_Facture_EDF.pdf
-│   ├── 2019-02_Facture_EDF.pdf
-│   └── ...
-├── Quittance-de-loyer/
-├── Bulletin-de-paie/
-└── index.csv
-```
-
-Le script filtre automatiquement les documents déjà taggés `digiposte:uploaded`
-et ne génère que les nouveautés.
-
-### Étape 4 — Upload dans Digiposte
-
-1. Ouvre Digiposte dans ton navigateur
-2. Coffre → Ajouter un élément → Importer un dossier
-3. Sélectionne un dossier (par exemple `Facture/`) depuis Finder
-4. Digiposte crée le dossier côté coffre et importe les PDFs à l'intérieur
-5. Recommence pour chaque catégorie
-
-⚠️ **Ne pas uploader un ZIP** : Digiposte stocke alors un fichier ZIP unique
-non-visualisable. Toujours uploader les dossiers directement.
-
-### Étape 5 — Marquer comme uploadé puis archiver
-
-Une fois TOUS les dossiers uploadés dans Digiposte :
-
-```bash
-# Option 1 : tagger + archiver en une commande
-make archive-and-mark
-
-# Option 2 : séparément si tu veux vérifier entre les deux
-make mark-uploaded
-make archive-digiposte
-```
-
-`digiposte/` est vidé, les fichiers sont archivés dans `digiposte/archive/<timestamp>/`,
-et les docs Paperless portent le tag `digiposte:uploaded` → ils ne seront plus
-exportés au prochain run.
-
----
-
-## 🛠️ Cibles Makefile
-
-```
-make help                  Liste complète des commandes
-
-# Stack & maintenance
-make up                    Démarre le stack
-make down                  Arrête le stack
-make clean                 Arrête + supprime tous les volumes (DESTRUCTIF)
-make build                 Rebuild l'image classifier
-make logs                  Tail des logs
-make shell                 Shell dans le container classifier
-make init-referential      (Re-)crée le référentiel Paperless (idempotent)
-make backup                Export natif Paperless-ngx des docs+métadonnées
-
-# Reprocessing
-make reprocess-failed      Relance les docs taggés ai:failed
-make reprocess-review      Relance les docs taggés ai:a-verifier
-
-# Export Digiposte
-make export-digiposte      Exporte les docs ai:processed
-make export-digiposte-all  Idem + inclut les ai:a-verifier
-make mark-uploaded         Tagge digiposte:uploaded les docs présents dans digiposte/
-make archive-digiposte     Déplace digiposte/* vers digiposte/archive/<timestamp>/
-make archive-and-mark      Tagge puis archive en une commande
-make trash-archives        Supprime toutes les archives (confirmation requise)
-
-# Stats
-make stats                 Résumé depuis le JSONL (coût, volumes, confidence)
-```
-
----
-
-## 📂 Structure du repo
-
-```
-paperless-pipeline/
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
-├── Makefile
-├── README.md
-├── classifier/
-│   ├── Dockerfile
-│   ├── pyproject.toml
-│   ├── uv.lock
-│   ├── src/pipeline/
-│   │   ├── cli.py                   # Entry point (run, reprocess, stats)
-│   │   ├── config.py                # Pydantic Settings
-│   │   ├── schemas.py               # Modèles Pydantic I/O
-│   │   ├── prompt.py                # Prompt système Claude + tool use
-│   │   ├── llm_client.py            # SDK Anthropic avec prompt caching
-│   │   ├── paperless_client.py      # Client REST Paperless-ngx
-│   │   ├── normalizer.py            # Slugify + fuzzy matching Levenshtein
-│   │   ├── referential.py           # Whitelist canonique + création auto
-│   │   ├── classifier.py            # Orchestration du traitement d'un doc
-│   │   ├── poller.py                # Boucle principale
-│   │   ├── logging_setup.py         # Console + JSONL rotatif
-│   │   └── referentials/
-│   │       ├── correspondents_canonical.yaml
-│   │       ├── document_types.yaml
-│   │       └── tags.yaml
-│   └── scripts/
-│       ├── init_referential.py      # One-shot init Paperless
-│       ├── export_digiposte.py      # Export vers arborescence Digiposte
-│       ├── archive_digiposte.py     # Déplacement vers archive/<timestamp>/
-│       └── mark_uploaded.py         # Tagging bulk digiposte:uploaded
-├── data/                            # (gitignored)
-│   ├── consume/                     # Dépôt des PDFs à traiter
-│   ├── media/                       # Stockage interne Paperless (source de vérité)
-│   ├── export/digiposte/            # Arborescence prête pour Digiposte
-│   └── data/                        # Index de recherche Paperless
-└── logs/
-    └── pipeline.jsonl               # Audit log rotatif
-```
-
----
-
-## 🎛️ Configuration avancée
-
-### Ajuster le seuil de confidence
-
-Dans `docker-compose.yml`, service `classifier` :
-
-```yaml
-      CONFIDENCE_THRESHOLD: "0.7"
-```
-
-- `0.9` : très strict, beaucoup de docs en `ai:a-verifier`
-- `0.7` : équilibré (défaut)
-- `0.5` : permissif, peu de review manuelle
-
-### Changer de modèle LLM
-
-```yaml
-      LLM_MODEL: claude-sonnet-4-6        # défaut, rapport qualité/prix optimal
-      # LLM_MODEL: claude-opus-4-7         # plus précis, 5x plus cher
-      # LLM_MODEL: claude-haiku-4-5        # moins cher mais précision en baisse
-```
-
-### Ajouter un correspondant canonique
-
-Édite `classifier/src/pipeline/referentials/correspondents_canonical.yaml`,
-ajoute une entrée avec alias :
-
-```yaml
-- canonical: "Nouveau Correspondant"
-  aliases: ["Variante 1", "Autre variante"]
-```
-
-Puis re-init (idempotent) :
-
-```bash
-make init-referential
 docker compose restart classifier
-```
-
-### Désactiver la création auto des correspondants
-
-Dans `classifier/src/pipeline/referential.py`, méthode `resolve_correspondent`,
-remplacer la branche de création Classe B par une exception. Le pipeline taguera
-alors `ai:failed` les docs avec un correspondant non-whitelisté.
-
----
-
-## 💰 Coûts estimés
-
-Avec Claude Sonnet 4.6 + prompt caching Anthropic :
-
-- **1er doc (cache miss)** : ~$0.017
-- **Docs suivants (cache hit)** : ~$0.005 à $0.008
-
-Pour **300 documents d'archive initiale** : ~$3 à $5.
-Pour un **flux continu** de ~500 docs/an : ~$8 à $10/an.
-
----
-
-## 🔒 Sécurité et confidentialité
-
-- `.env` n'est JAMAIS commité (voir `.gitignore`)
-- Le dossier `data/` n'est JAMAIS commité
-- Tout le pipeline tourne **localement** (OCR + Paperless + orchestration)
-- Seul le **texte OCR extrait** est envoyé à l'API Anthropic pour classification
-- Les PDFs originaux ne quittent jamais ta machine
-- Hébergement Anthropic : US / EU selon région
-
-Pour un usage strict « 100% local » (documents très sensibles), remplacer Claude
-par un modèle Ollama local (Qwen 2.5 72B, Llama 3.3) avec précision légèrement
-inférieure sur le français admin.
-
----
-
-## 🐛 Dépannage
-
-### Le classifier crashe au démarrage avec « Tag ai:processed introuvable »
-
-Le référentiel n'a pas été initialisé. Lance :
-
-```bash
 make init-referential
-docker compose restart classifier
-```
-
-### Un doc reste dans `data/consume/` sans être traité
-
-Vérifie les logs Paperless :
-
-```bash
-docker compose logs webserver --tail 50
-```
-
-Causes fréquentes : PDF corrompu, mot de passe sur le PDF, format non-supporté.
-
-### Un doc est classé en `ai:failed`
-
-Colle la ligne JSONL correspondante :
-
-```bash
-grep '"status":"failed"' logs/pipeline.jsonl | tail -1 | jq .
-```
-
-Le champ `error` te donne la cause (OCR vide, schéma LLM invalide, push Paperless échoué...).
-
-Tu peux relancer après avoir compris/corrigé :
-
-```bash
-make reprocess-failed
-```
-
-### Reset complet
-
-```bash
-make clean    # supprime TOUTES les données (confirmation requise)
 ```
 
 ---
 
-## 📜 Licence
+## Configuration
 
-MIT — usage personnel et pédagogique.
+All configuration is done via environment variables. The full list is in
+`.env.example`.
 
-## 🙏 Crédits
+### LLM provider
 
-- [Paperless-ngx](https://docs.paperless-ngx.com/) — système de gestion documentaire
-- [Anthropic Claude](https://www.anthropic.com/claude) — classification LLM
-- [uv](https://docs.astral.sh/uv/) — gestionnaire Python moderne
-- [Docker](https://www.docker.com/) + [Colima](https://github.com/abiosoft/colima) ou [OrbStack](https://orbstack.dev/)
+```bash
+LLM_PROVIDER=anthropic          # anthropic | openai
+LLM_MODEL=claude-sonnet-4-6
+LLM_API_KEY=sk-ant-...
+```
+
+### Language
+
+```bash
+LANGUAGE=fr                     # main language (default: fr)
+PROMPT_LANGUAGE=fr              # override prompt language (default: LANGUAGE)
+EXPORT_LANGUAGE=en              # override export folder names (default: LANGUAGE)
+```
+
+### Referentials
+
+```bash
+REFERENTIALS_DIR=/app/config/fr-admin   # path to YAML preset inside the container
+```
+
+To use a different preset, create `config/<your-preset>/` with the three YAML
+files (`document_types.yaml`, `correspondents.yaml`, `tags.yaml`) and point
+`REFERENTIALS_DIR` to it.
+
+### Tuning
+
+```bash
+CONFIDENCE_THRESHOLD=0.7        # below this → ai:to-check
+POLL_INTERVAL_SECONDS=60
+LEVENSHTEIN_THRESHOLD=0.85      # fuzzy match sensitivity for correspondents
+```
+
+---
+
+## Usage
+
+### Daily workflow
+
+```bash
+make up                         # start the stack
+# drop PDFs into data/consume/
+# filethat classifies them automatically
+make stats                      # view classification statistics
+```
+
+### Reprocessing
+
+```bash
+make reprocess-review           # reprocess documents tagged ai:to-check
+make reprocess-failed           # reprocess documents tagged ai:failed
+```
+
+### Export workflow
+
+```bash
+make export                     # export ai:processed documents to data/export/
+make export-all                 # same + include ai:to-check documents
+make mark-exported              # tag exported documents as workflow:exported
+make archive                    # move export to archive/<timestamp>/
+make archive-and-mark           # mark + archive in one command
+```
+
+See [examples/export-workflow/README.md](examples/export-workflow/README.md)
+for a complete walkthrough.
+
+### All available commands
+
+```bash
+make help
+```
+
+---
+
+## Presets
+
+A preset is a directory under `config/` containing three YAML files that define
+the document types, correspondents and tags for a specific country or context.
+
+| Preset | Language | Status |
+|---|---|---|
+| `fr-admin` | French administrative documents | Included |
+| `en-admin` | English administrative documents | Contributions welcome |
+| `de-admin` | German administrative documents | Contributions welcome |
+
+To create your own preset, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### Personal correspondents
+
+Add your own correspondents (landlord, employer, local providers) without
+modifying the shared preset:
+
+```bash
+cp config/fr-admin/correspondents.local.yaml.example \
+   config/fr-admin/correspondents.local.yaml
+# edit correspondents.local.yaml — it is gitignored
+```
+
+---
+
+## Development
+
+```bash
+cd classifier
+uv sync --dev
+uv run pytest tests/ -v
+uv run ruff check src/
+uv run mypy src/filethat/
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

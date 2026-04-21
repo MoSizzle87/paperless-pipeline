@@ -1,0 +1,162 @@
+# Pipeline system tags — do not rename, used internally by the classifier.
+system:
+  - id: "ai:processed"
+    color: "#2ecc71"
+  - id: "ai:to-check"
+    color: "#f39c12"
+  - id: "ai:failed"
+    color: "#e74c3c"
+  - id: "workflow:exported"
+    color: "#3498db"
+
+# Business tags — thematic labels applied by the LLM.
+business:
+  - id: "energie"
+    labels:
+      fr: "energie"
+      en: "energy"
+    color: "#3498db"
+
+  - id: "electricite"
+    labels:
+      fr: "electricite"
+      en: "electricity"
+    color: "#3498db"
+
+  - id: "gaz"
+    labels:
+      fr: "gaz"
+      en: "gas"
+    color: "#3498db"
+
+  - id: "eau"
+    labels:
+      fr: "eau"
+      en: "water"
+    color: "#3498db"
+
+  - id: "internet"
+    labels:
+      fr: "internet"
+      en: "internet"
+    color: "#9b59b6"
+
+  - id: "telephone"
+    labels:
+      fr: "telephone"
+      en: "phone"
+    color: "#9b59b6"
+
+  - id: "salaire"
+    labels:
+      fr: "salaire"
+      en: "salary"
+    color: "#1abc9c"
+
+  - id: "impot"
+    labels:
+      fr: "impot"
+      en: "tax"
+    color: "#c0392b"
+
+  - id: "taxe"
+    labels:
+      fr: "taxe"
+      en: "levy"
+    color: "#c0392b"
+
+  - id: "banque"
+    labels:
+      fr: "banque"
+      en: "banking"
+    color: "#16a085"
+
+  - id: "epargne"
+    labels:
+      fr: "epargne"
+      en: "savings"
+    color: "#16a085"
+
+  - id: "assurance"
+    labels:
+      fr: "assurance"
+      en: "insurance"
+    color: "#8e44ad"
+
+  - id: "sante"
+    labels:
+      fr: "sante"
+      en: "health"
+    color: "#e67e22"
+
+  - id: "mutuelle"
+    labels:
+      fr: "mutuelle"
+      en: "health-insurance"
+    color: "#e67e22"
+
+  - id: "logement"
+    labels:
+      fr: "logement"
+      en: "housing"
+    color: "#2980b9"
+
+  - id: "loyer"
+    labels:
+      fr: "loyer"
+      en: "rent"
+    color: "#2980b9"
+
+  - id: "immobilier"
+    labels:
+      fr: "immobilier"
+      en: "real-estate"
+    color: "#2980b9"
+
+  - id: "vehicule"
+    labels:
+      fr: "vehicule"
+      en: "vehicle"
+    color: "#34495e"
+
+  - id: "famille"
+    labels:
+      fr: "famille"
+      en: "family"
+    color: "#d35400"
+
+  - id: "identite"
+    labels:
+      fr: "identite"
+      en: "identity"
+    color: "#7f8c8d"
+
+  - id: "scolarite"
+    labels:
+      fr: "scolarite"
+      en: "schooling"
+    color: "#27ae60"
+
+  - id: "formation"
+    labels:
+      fr: "formation"
+      en: "training"
+    color: "#27ae60"
+
+  - id: "emploi"
+    labels:
+      fr: "emploi"
+      en: "employment"
+    color: "#1abc9c"
+
+  - id: "retraite"
+    labels:
+      fr: "retraite"
+      en: "retirement"
+    color: "#95a5a6"
+
+  - id: "juridique"
+    labels:
+      fr: "juridique"
+      en: "legal"
+    color: "#c0392b"

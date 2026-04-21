@@ -1,46 +1,46 @@
-"""Schémas Pydantic pour la classification LLM et les entités Paperless-ngx."""
+"""Pydantic schemas for LLM classification output and Paperless-ngx entities."""
 
 from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-DocumentTypeName = Literal[
-    "Titre d'identité",
-    "Acte d'état civil",
-    "Jugement / Acte juridique",
-    "Diplôme",
-    "Bulletin de paie",
-    "Document fiscal",
-    "Document Pôle Emploi / France Travail",
-    "Document employeur",
-    "Relevé bancaire",
-    "Mutuelle / Remboursement santé",
-    "Ordonnance",
-    "Document médical",
-    "Assurance",
-    "Contrat",
-    "Quittance de loyer",
-    "Document immobilier",
-    "Carte grise / Document véhicule",
-    "Facture",
-    "Devis / Bon de commande",
-    "Bulletin scolaire",
-    "Document scolaire",
-    "Courrier administratif",
-    "Autre",
+DocumentTypeId = Literal[
+    "identity-document",
+    "civil-status",
+    "legal-document",
+    "diploma",
+    "payslip",
+    "tax-document",
+    "unemployment-document",
+    "employer-document",
+    "bank-statement",
+    "health-insurance",
+    "prescription",
+    "medical-document",
+    "insurance",
+    "contract",
+    "rent-receipt",
+    "real-estate",
+    "vehicle-document",
+    "invoice",
+    "quote",
+    "school-report",
+    "school-document",
+    "administrative-letter",
+    "other",
 ]
 
 
 class LLMClassification(BaseModel):
-    """Sortie structurée attendue de Claude via tool use."""
+    """Structured output expected from the LLM via tool use / function calling."""
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
     title: str = Field(min_length=3, max_length=120)
     created: date | None
     correspondent: str = Field(min_length=1, max_length=100)
-    document_type: DocumentTypeName
+    document_type: DocumentTypeId
     tags: list[str] = Field(min_length=2, max_length=5)
     confidence: float = Field(ge=0.0, le=1.0)
 
@@ -66,7 +66,7 @@ class PaperlessDocumentType(BaseModel):
 
 
 class PaperlessDocument(BaseModel):
-    """Document Paperless-ngx tel que renvoyé par l'API."""
+    """Document as returned by the Paperless-ngx REST API."""
 
     id: int
     title: str
@@ -78,7 +78,7 @@ class PaperlessDocument(BaseModel):
 
 
 class ClassificationResult(BaseModel):
-    """Résultat d'un traitement complet d'un document, pour le logging."""
+    """Full processing result for a single document, used for logging."""
 
     doc_id: int
     status: Literal["ok", "review", "failed"]
@@ -88,8 +88,8 @@ class ClassificationResult(BaseModel):
     correspondent_created: bool = False
     tokens_in: int | None = None
     tokens_out: int | None = None
-    cache_read: int | None = None  # ← nouveau
-    cache_write: int | None = None  # ← nouveau
+    cache_read: int | None = None
+    cache_write: int | None = None
     cost_usd: float | None = None
     duration_ms: int | None = None
     error: str | None = None

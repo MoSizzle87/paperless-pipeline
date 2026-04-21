@@ -1,4 +1,4 @@
-"""Normalisation des strings : slugification et matching fuzzy Levenshtein."""
+"""String normalization: slugification and Levenshtein fuzzy matching."""
 
 import re
 import unicodedata
@@ -7,13 +7,13 @@ from rapidfuzz import fuzz, process
 
 
 def strip_accents(text: str) -> str:
-    """Retire les accents en préservant la structure ASCII."""
+    """Remove accents while preserving ASCII structure."""
     nfd = unicodedata.normalize("NFD", text)
     return "".join(c for c in nfd if unicodedata.category(c) != "Mn")
 
 
 def slugify(text: str) -> str:
-    """Slugifie pour comparaison : lowercase, ASCII, alphanumérique+tirets."""
+    """Slugify for comparison: lowercase, ASCII, alphanumeric and hyphens only."""
     text = strip_accents(text).lower()
     text = re.sub(r"[^a-z0-9]+", "-", text)
     return text.strip("-")
@@ -24,15 +24,17 @@ def fuzzy_match(
     haystack: list[str],
     threshold: float = 0.85,
 ) -> str | None:
-    """Retourne la meilleure correspondance dans haystack si ratio ≥ threshold, sinon None.
+    """Return the best match in haystack if similarity ratio >= threshold, else None.
 
-    Compare sur les slugs normalisés pour ignorer accents et casse.
+    Comparison is performed on normalized slugs to ignore accents and case.
+    The original casing of the matched value is preserved in the return value.
     """
     if not haystack:
         return None
 
     needle_slug = slugify(needle)
-    # Map slug → valeur originale pour restituer la casse d'origine
+
+    # Map slug → original value to restore original casing
     slug_to_original = {slugify(h): h for h in haystack}
 
     match = process.extractOne(

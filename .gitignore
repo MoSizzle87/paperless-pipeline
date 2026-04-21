@@ -1,20 +1,23 @@
 # ─────────────────────────────────────────────
-# paperless-pipeline — .gitignore
+# filethat — .gitignore
 # ─────────────────────────────────────────────
 
-# Environnement — JAMAIS commité
+# Environment — NEVER commit
 .env
 .env.local
 .env.*.local
 
-# Données Paperless — JAMAIS commitées
+# Paperless data — NEVER commit
 data/
 
-# Logs runtime
+# Runtime logs
 logs/*.jsonl
 logs/*.jsonl.*
 logs/*.log
 !logs/.gitkeep
+
+# Personal referential overrides — NEVER commit
+config/**/correspondents.local.yaml
 
 # Python
 __pycache__/
@@ -27,12 +30,12 @@ __pycache__/
 build/
 dist/
 
-# Environnements virtuels Python (dev local hors Docker)
+# Python virtual environments
 .venv/
 venv/
 env/
 
-# Caches outils Python
+# Python tool caches
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/
@@ -45,7 +48,7 @@ htmlcov/
 .LSOverride
 ._*
 
-# Éditeurs
+# Editors
 .vscode/
 .idea/
 *.swp
@@ -53,5 +56,5 @@ htmlcov/
 *~
 
 # uv
-# uv.lock EST commité (fige les versions), ne PAS l'ignorer
+# uv.lock IS committed (pins versions), do NOT ignore
 .uv/

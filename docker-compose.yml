@@ -52,18 +52,22 @@ services:
       - webserver
     volumes:
       - ./logs:/app/logs
-      - ./classifier/src/pipeline/referentials:/app/referentials:ro
+      - ./config/fr-admin:/app/config/fr-admin:ro
       - ./data/export:/app/export
     environment:
       PAPERLESS_API_URL: http://webserver:8000/api
       PAPERLESS_API_TOKEN: ${PAPERLESS_API_TOKEN}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      LLM_MODEL: claude-sonnet-4-6
-      POLL_INTERVAL_SECONDS: 60
-      CONFIDENCE_THRESHOLD: "0.7"
-      LEVENSHTEIN_THRESHOLD: "0.85"
-      REFERENTIALS_DIR: /app/referentials
-      LOG_LEVEL: INFO
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-6}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LANGUAGE: ${LANGUAGE:-fr}
+      PROMPT_LANGUAGE: ${PROMPT_LANGUAGE:-}
+      EXPORT_LANGUAGE: ${EXPORT_LANGUAGE:-}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.7}
+      LEVENSHTEIN_THRESHOLD: ${LEVENSHTEIN_THRESHOLD:-0.85}
+      REFERENTIALS_DIR: /app/config/fr-admin
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_DIR: /app/logs
       PYTHONUNBUFFERED: "1"
 

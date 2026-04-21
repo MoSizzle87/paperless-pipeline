@@ -1,25 +1,23 @@
-"""Configuration du logging : console pour debug + JSONL rotatif pour audit."""
+"""Logging configuration: human-readable console output + rotating JSONL audit log."""
 
-import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from pythonjsonlogger.json import JsonFormatter
 
-from pipeline.schemas import ClassificationResult
+from filethat.schemas import ClassificationResult
 
 
 def setup_logging(log_level: str, log_dir: Path) -> None:
-    """Configure les loggers racine (console) et 'pipeline.audit' (JSONL rotatif)."""
+    """Configure root logger (console) and 'filethat.audit' logger (rotating JSONL)."""
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    # Logger racine : stdout lisible humain
+    # Root logger: human-readable stdout
     root = logging.getLogger()
     root.setLevel(log_level.upper())
     root.handlers.clear()
-
     console = logging.StreamHandler()
     console.setFormatter(
         logging.Formatter(
@@ -29,11 +27,10 @@ def setup_logging(log_level: str, log_dir: Path) -> None:
     )
     root.addHandler(console)
 
-    # Logger 'pipeline.audit' : JSONL par-doc, rotation par taille
-    audit = logging.getLogger("pipeline.audit")
+    # 'filethat.audit' logger: per-document JSONL, size-based rotation
+    audit = logging.getLogger("filethat.audit")
     audit.setLevel(logging.INFO)
-    audit.propagate = False  # pas de doublon sur la console
-
+    audit.propagate = False  # no duplicate output on console
     audit_file = log_dir / "pipeline.jsonl"
     handler = RotatingFileHandler(
         audit_file,
@@ -46,12 +43,12 @@ def setup_logging(log_level: str, log_dir: Path) -> None:
 
 
 def log_classification(result: ClassificationResult) -> None:
-    """Émet une ligne JSONL d'audit pour un document traité."""
-    audit = logging.getLogger("pipeline.audit")
+    """Emit a JSONL audit line for a processed document."""
+    audit = logging.getLogger("filethat.audit")
     audit.info(
         "doc_classified",
         extra={
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             **result.model_dump(exclude_none=True),
         },
     )

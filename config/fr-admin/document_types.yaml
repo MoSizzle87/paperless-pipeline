@@ -1,0 +1,142 @@
+# Document types for French administrative documents.
+# id: stable internal identifier (used by LLM and code)
+# labels: display name per language
+# priority: classification priority (lower number = higher priority)
+
+- id: "identity-document"
+  labels:
+    fr: "Titre d'identité"
+    en: "Identity Document"
+  priority: 1
+
+- id: "civil-status"
+  labels:
+    fr: "Acte d'état civil"
+    en: "Civil Status Record"
+  priority: 2
+
+- id: "legal-document"
+  labels:
+    fr: "Jugement / Acte juridique"
+    en: "Legal Document"
+  priority: 3
+
+- id: "diploma"
+  labels:
+    fr: "Diplôme"
+    en: "Diploma"
+  priority: 4
+
+- id: "payslip"
+  labels:
+    fr: "Bulletin de paie"
+    en: "Payslip"
+  priority: 5
+
+- id: "tax-document"
+  labels:
+    fr: "Document fiscal"
+    en: "Tax Document"
+  priority: 6
+
+- id: "unemployment-document"
+  labels:
+    fr: "Document Pôle Emploi / France Travail"
+    en: "Unemployment Document"
+  priority: 7
+
+- id: "employer-document"
+  labels:
+    fr: "Document employeur"
+    en: "Employer Document"
+  priority: 8
+
+- id: "bank-statement"
+  labels:
+    fr: "Relevé bancaire"
+    en: "Bank Statement"
+  priority: 9
+
+- id: "health-insurance"
+  labels:
+    fr: "Mutuelle / Remboursement santé"
+    en: "Health Insurance"
+  priority: 10
+
+- id: "prescription"
+  labels:
+    fr: "Ordonnance"
+    en: "Prescription"
+  priority: 11
+
+- id: "medical-document"
+  labels:
+    fr: "Document médical"
+    en: "Medical Document"
+  priority: 12
+
+- id: "insurance"
+  labels:
+    fr: "Assurance"
+    en: "Insurance"
+  priority: 13
+
+- id: "contract"
+  labels:
+    fr: "Contrat"
+    en: "Contract"
+  priority: 14
+
+- id: "rent-receipt"
+  labels:
+    fr: "Quittance de loyer"
+    en: "Rent Receipt"
+  priority: 15
+
+- id: "real-estate"
+  labels:
+    fr: "Document immobilier"
+    en: "Real Estate Document"
+  priority: 16
+
+- id: "vehicle-document"
+  labels:
+    fr: "Carte grise / Document véhicule"
+    en: "Vehicle Document"
+  priority: 17
+
+- id: "invoice"
+  labels:
+    fr: "Facture"
+    en: "Invoice"
+  priority: 18
+
+- id: "quote"
+  labels:
+    fr: "Devis / Bon de commande"
+    en: "Quote / Purchase Order"
+  priority: 19
+
+- id: "school-report"
+  labels:
+    fr: "Bulletin scolaire"
+    en: "School Report"
+  priority: 20
+
+- id: "school-document"
+  labels:
+    fr: "Document scolaire"
+    en: "School Document"
+  priority: 21
+
+- id: "administrative-letter"
+  labels:
+    fr: "Courrier administratif"
+    en: "Administrative Letter"
+  priority: 22
+
+- id: "other"
+  labels:
+    fr: "Autre"
+    en: "Other"
+  priority: 23

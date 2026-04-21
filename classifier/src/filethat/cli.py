@@ -1,19 +1,23 @@
-"""Point d'entrée CLI : `python -m pipeline.cli {run,reprocess,stats}`."""
+"""CLI entry point: `python -m filethat.cli {run,reprocess,stats}`."""
 
 import argparse
 import json
 import logging
 import sys
 from collections import defaultdict
-from pathlib import Path
 
-from pipeline.classifier import DocumentClassifier
-from pipeline.config import settings
-from pipeline.llm_client import LLMClient
-from pipeline.logging_setup import setup_logging
-from pipeline.paperless_client import PaperlessClient
-from pipeline.poller import Poller
-from pipeline.referential import CanonicalCorrespondents, ReferentialManager
+from filethat.classifier import DocumentClassifier
+from filethat.config import settings
+from filethat.llm.factory import build_llm_client
+from filethat.logging_setup import setup_logging
+from filethat.paperless_client import PaperlessClient
+from filethat.poller import Poller
+from filethat.referential import (
+    CanonicalCorrespondents,
+    DocumentTypeRegistry,
+    ReferentialManager,
+    TagRegistry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +27,27 @@ def _build_stack() -> tuple[PaperlessClient, DocumentClassifier, ReferentialMana
         base_url=str(settings.paperless_api_url),
         token=settings.paperless_api_token.get_secret_value(),
     )
-    llm = LLMClient(
-        api_key=settings.anthropic_api_key.get_secret_value(),
+    llm = build_llm_client(
+        provider=settings.llm_provider,
         model=settings.llm_model,
+        api_key=settings.llm_api_key.get_secret_value(),
+        prompt_language=settings.effective_prompt_language,
     )
-    canonical = CanonicalCorrespondents(settings.referentials_dir / "correspondents_canonical.yaml")
+    ref_dir = settings.referentials_dir
+    canonical = CanonicalCorrespondents(ref_dir / "correspondents.yaml")
+    doc_type_registry = DocumentTypeRegistry(
+        ref_dir / "document_types.yaml",
+        language=settings.language,
+    )
+    tag_registry = TagRegistry(
+        ref_dir / "tags.yaml",
+        language=settings.language,
+    )
     referential = ReferentialManager(
         client=paperless,
         canonical_correspondents=canonical,
+        document_type_registry=doc_type_registry,
+        tag_registry=tag_registry,
         levenshtein_threshold=settings.levenshtein_threshold,
     )
     classifier = DocumentClassifier(settings, paperless, llm, referential)
@@ -38,7 +55,7 @@ def _build_stack() -> tuple[PaperlessClient, DocumentClassifier, ReferentialMana
 
 
 def cmd_run() -> int:
-    """Démarre le poller en boucle."""
+    """Start the poller loop."""
     paperless, classifier, referential = _build_stack()
     poller = Poller(settings, paperless, classifier, referential)
     poller.install_signal_handlers()
@@ -50,14 +67,13 @@ def cmd_run() -> int:
 
 
 def cmd_reprocess(tag_name: str) -> int:
-    """Retraite les documents ayant le tag donné (ex: ai:a-verifier, ai:failed)."""
+    """Reprocess all documents carrying the given tag."""
     paperless, classifier, referential = _build_stack()
     try:
         tag_id = referential.tag_id(tag_name)
         docs = paperless.list_documents_with_tag(tag_id)
-        logger.info("%d document(s) à retraiter (tag=%s)", len(docs), tag_name)
+        logger.info("%d document(s) to reprocess (tag=%s)", len(docs), tag_name)
         for doc in docs:
-            # On retire le tag avant reprocess pour ne pas bloquer la re-catégorisation
             paperless.remove_tag(doc.id, tag_id)
             classifier.classify_document(doc)
     finally:
@@ -66,10 +82,10 @@ def cmd_reprocess(tag_name: str) -> int:
 
 
 def cmd_stats() -> int:
-    """Résumé des classifications depuis le JSONL."""
+    """Print classification statistics from the JSONL log."""
     log_file = settings.log_dir / "pipeline.jsonl"
     if not log_file.exists():
-        print("Aucun log JSONL trouvé (pas encore de docs traités).")
+        print("No JSONL log found (no documents processed yet).")
         return 0
 
     total = 0
@@ -94,17 +110,17 @@ def cmd_stats() -> int:
         if entry.get("correspondent_created"):
             correspondents_created += 1
 
-    print(f"\n📊 Stats pipeline\n{'=' * 40}")
-    print(f"Total documents traités : {total}")
-    print("\nPar statut :")
+    print(f"\nStats\n{'=' * 40}")
+    print(f"Total documents processed: {total}")
+    print("\nBy status:")
     for status, count in sorted(by_status.items()):
         print(f"  {status:12s} : {count}")
-    print(f"\nCorrespondants créés (Classe B ou canoniques) : {correspondents_created}")
-    print(f"Coût cumulé API : ${total_cost:.4f}")
+    print(f"\nCorrespondents created (Class B or canonical): {correspondents_created}")
+    print(f"Cumulative API cost: ${total_cost:.4f}")
     if confidences:
         avg = sum(confidences) / len(confidences)
-        print(f"Confidence moyenne : {avg:.3f}")
-    print("\nTop 10 types de documents :")
+        print(f"Average confidence: {avg:.3f}")
+    print("\nTop 10 document types:")
     for doc_type, count in sorted(by_type.items(), key=lambda x: -x[1])[:10]:
         print(f"  {count:4d}  {doc_type}")
 
@@ -114,15 +130,15 @@ def cmd_stats() -> int:
 def main(argv: list[str] | None = None) -> int:
     setup_logging(settings.log_level, settings.log_dir)
 
-    parser = argparse.ArgumentParser(prog="pipeline")
+    parser = argparse.ArgumentParser(prog="filethat")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("run", help="Démarre le poller en boucle")
+    sub.add_parser("run", help="Start the poller loop")
 
-    p_reprocess = sub.add_parser("reprocess", help="Retraite les docs d'un tag donné")
-    p_reprocess.add_argument("--tag", required=True, help="Nom du tag (ex: ai:a-verifier)")
+    p_reprocess = sub.add_parser("reprocess", help="Reprocess documents with a given tag")
+    p_reprocess.add_argument("--tag", required=True, help="Tag name (e.g. ai:a-verifier)")
 
-    sub.add_parser("stats", help="Statistiques depuis le JSONL")
+    sub.add_parser("stats", help="Print statistics from the JSONL log")
 
     args = parser.parse_args(argv)
 

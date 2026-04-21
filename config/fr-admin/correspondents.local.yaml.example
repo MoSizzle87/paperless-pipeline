@@ -1,0 +1,32 @@
+# correspondents.local.yaml — personal correspondents override
+#
+# Add your own correspondents here (landlord, employer, local providers, etc.)
+# This file is gitignored and will be merged with correspondents.yaml at startup.
+#
+# Copy this file to correspondents.local.yaml and fill in your entries:
+#   cp correspondents.local.yaml.example correspondents.local.yaml
+#
+# Format: same as correspondents.yaml
+#   canonical: the name that will appear in Paperless (stable identifier)
+#   aliases:   alternate names that will be mapped to the canonical
+#   category:  optional, for documentation purposes only
+
+# ── Housing ───────────────────────────────────────────────────────
+# - canonical: "My Landlord"
+#   aliases: ["My Landlord SCI", "Landlord Management Co."]
+#   category: "housing"
+
+# ── Employer ──────────────────────────────────────────────────────
+# - canonical: "My Company"
+#   aliases: ["My Company SAS", "My Company Group"]
+#   category: "employer"
+
+# ── Local utilities ───────────────────────────────────────────────
+# - canonical: "Local Water Co."
+#   aliases: ["Eau du Grand Paris", "SEDIF"]
+#   category: "energy"
+
+# ── Healthcare ────────────────────────────────────────────────────
+# - canonical: "Dr Smith"
+#   aliases: []
+#   category: "health"

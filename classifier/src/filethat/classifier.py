@@ -1,25 +1,24 @@
-"""Orchestration : un document Paperless → LLM → validation → push."""
+"""Document orchestration: Paperless document → LLM → validation → patch."""
 
 import logging
 import time
-from datetime import datetime
 
-from pipeline.config import Settings
-from pipeline.llm_client import LLMClassificationError, LLMClient
-from pipeline.logging_setup import log_classification
-from pipeline.paperless_client import PaperlessClient
-from pipeline.referential import ReferentialManager
-from pipeline.schemas import ClassificationResult, PaperlessDocument
+from filethat.config import Settings
+from filethat.llm.base import LLMClassificationError, LLMClient
+from filethat.logging_setup import log_classification
+from filethat.paperless_client import PaperlessClient
+from filethat.referential import ReferentialManager
+from filethat.schemas import ClassificationResult, PaperlessDocument
 
 logger = logging.getLogger(__name__)
 
 TAG_PROCESSED = "ai:processed"
-TAG_REVIEW = "ai:a-verifier"
+TAG_REVIEW = "ai:to-check"
 TAG_FAILED = "ai:failed"
 
 
 class DocumentClassifier:
-    """Orchestrateur du traitement d'un document unique."""
+    """Orchestrates the full processing pipeline for a single document."""
 
     def __init__(
         self,
@@ -27,20 +26,20 @@ class DocumentClassifier:
         paperless: PaperlessClient,
         llm: LLMClient,
         referential: ReferentialManager,
-    ):
+    ) -> None:
         self._settings = settings
         self._paperless = paperless
         self._llm = llm
         self._ref = referential
 
     def classify_document(self, doc: PaperlessDocument) -> ClassificationResult:
-        """Traite un document complet. Ne lève jamais — encapsule tout dans le résultat."""
+        """Process a document end-to-end. Never raises — all errors are captured in the result."""
         start = time.perf_counter()
         log = logger.getChild(f"doc[{doc.id}]")
 
-        # Récupère le contenu OCR (peut être None si Paperless n'a pas fini l'OCR)
+        # OCR content check — may be missing if Paperless has not finished OCR yet
         if not doc.content or len(doc.content.strip()) < 50:
-            log.warning("Contenu OCR absent ou trop court, skip")
+            log.warning("OCR content missing or too short, skipping")
             self._tag_failed(doc.id)
             return ClassificationResult(
                 doc_id=doc.id,
@@ -49,11 +48,11 @@ class DocumentClassifier:
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        # Appel LLM
+        # LLM classification
         try:
             llm_result = self._llm.classify(doc.content)
         except LLMClassificationError as e:
-            log.error("Classification échouée : %s", e)
+            log.error("Classification failed: %s", e)
             self._tag_failed(doc.id)
             return ClassificationResult(
                 doc_id=doc.id,
@@ -61,8 +60,8 @@ class DocumentClassifier:
                 error=str(e),
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
-        except Exception as e:  # noqa: BLE001 — on loggue et on taggue failed
-            log.exception("Erreur inattendue lors de l'appel LLM")
+        except Exception as e:
+            log.exception("Unexpected error during LLM call")
             self._tag_failed(doc.id)
             return ClassificationResult(
                 doc_id=doc.id,
@@ -73,13 +72,13 @@ class DocumentClassifier:
 
         cls = llm_result.classification
 
-        # Résolution des entités vers des IDs Paperless
+        # Resolve entities to Paperless ids
         try:
             correspondent_id, was_created = self._ref.resolve_correspondent(cls.correspondent)
             document_type_id = self._ref.resolve_document_type(cls.document_type)
             tag_ids = self._ref.resolve_tags(cls.tags)
-        except Exception as e:  # noqa: BLE001
-            log.exception("Résolution référentielle échouée")
+        except Exception as e:
+            log.exception("Referential resolution failed")
             self._tag_failed(doc.id)
             return ClassificationResult(
                 doc_id=doc.id,
@@ -88,7 +87,7 @@ class DocumentClassifier:
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        # Construction du patch Paperless
+        # Build Paperless patch payload
         status: str
         if cls.confidence >= self._settings.confidence_threshold:
             status_tag_id = self._ref.tag_id(TAG_PROCESSED)
@@ -104,13 +103,13 @@ class DocumentClassifier:
             "tags": [*tag_ids, status_tag_id],
         }
         if cls.created is not None:
-            # Paperless accepte date ISO pour le champ `created_date`
+            # Paperless accepts ISO date for the `created_date` field
             payload["created_date"] = cls.created.isoformat()
 
         try:
             self._paperless.patch_document(doc.id, payload)
-        except Exception as e:  # noqa: BLE001
-            log.exception("Patch Paperless échoué")
+        except Exception as e:
+            log.exception("Paperless patch failed")
             self._tag_failed(doc.id)
             return ClassificationResult(
                 doc_id=doc.id,
@@ -121,13 +120,13 @@ class DocumentClassifier:
 
         duration_ms = int((time.perf_counter() - start) * 1000)
         log.info(
-            "Classifié %s → %s / %s (conf=%.2f, %dms, $%.4f)",
+            "Classified %s → %s / %s (conf=%.2f, %dms, $%.4f)",
             cls.title,
             cls.document_type,
             cls.correspondent,
             cls.confidence,
             duration_ms,
-            llm_result.cost_usd,
+            llm_result.cost_usd or 0.0,
         )
 
         result = ClassificationResult(
@@ -141,7 +140,7 @@ class DocumentClassifier:
             tokens_out=llm_result.tokens_out,
             cache_read=llm_result.cache_read,
             cache_write=llm_result.cache_write,
-            cost_usd=round(llm_result.cost_usd, 6),
+            cost_usd=round(llm_result.cost_usd, 6) if llm_result.cost_usd is not None else None,
             duration_ms=duration_ms,
         )
         log_classification(result)
@@ -150,5 +149,5 @@ class DocumentClassifier:
     def _tag_failed(self, doc_id: int) -> None:
         try:
             self._paperless.add_tag(doc_id, self._ref.tag_id(TAG_FAILED))
-        except Exception:  # noqa: BLE001
-            logger.exception("Impossible de taguer doc %s comme failed", doc_id)
+        except Exception:
+            logger.exception("Failed to tag document %s as failed", doc_id)

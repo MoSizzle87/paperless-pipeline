@@ -1,4 +1,4 @@
-"""Client HTTP pour l'API REST de Paperless-ngx."""
+"""HTTP client for the Paperless-ngx REST API."""
 
 import logging
 from typing import Any
@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from pipeline.schemas import (
+from filethat.schemas import (
     PaperlessCorrespondent,
     PaperlessDocument,
     PaperlessDocumentType,
@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 class PaperlessClient:
-    """Wrapper minimaliste autour de l'API Paperless-ngx."""
+    """Minimal wrapper around the Paperless-ngx REST API."""
 
-    def __init__(self, base_url: str, token: str):
+    def __init__(self, base_url: str, token: str) -> None:
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             headers={"Authorization": f"Token {token}"},
@@ -35,7 +35,7 @@ class PaperlessClient:
     def __exit__(self, *args: object) -> None:
         self.close()
 
-    # ------------------------------------------------------------------ Tags
+    # ─────────────────────────────────────────────────────────────── Tags
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def list_tags(self) -> list[PaperlessTag]:
@@ -47,7 +47,7 @@ class PaperlessClient:
         r.raise_for_status()
         return PaperlessTag.model_validate(r.json())
 
-    # --------------------------------------------------------- Correspondents
+    # ───────────────────────────────────────────────────────── Correspondents
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def list_correspondents(self) -> list[PaperlessCorrespondent]:
@@ -61,7 +61,7 @@ class PaperlessClient:
         r.raise_for_status()
         return PaperlessCorrespondent.model_validate(r.json())
 
-    # -------------------------------------------------------- Document types
+    # ──────────────────────────────────────────────────────── Document types
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def list_document_types(self) -> list[PaperlessDocumentType]:
@@ -73,24 +73,24 @@ class PaperlessClient:
         r.raise_for_status()
         return PaperlessDocumentType.model_validate(r.json())
 
-    # -------------------------------------------------------------- Documents
+    # ─────────────────────────────────────────────────────────── Documents
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def list_documents_without_tags(self, excluded_tag_ids: list[int]) -> list[PaperlessDocument]:
-        """Retourne les documents qui n'ont AUCUN des tags passés en argument.
+        """Return documents that have NONE of the given tags.
 
-        Utilisé par le poller pour récupérer les docs non-encore classifiés.
+        Used by the poller to fetch documents not yet classified.
+        Paperless uses tags__id__none to filter out documents with any of the given tags.
         """
-        # L'API Paperless utilise tags__id__none pour "aucun de ces tags"
         params: dict[str, Any] = {
             "tags__id__none": ",".join(str(i) for i in excluded_tag_ids),
-            "ordering": "added",  # plus ancien d'abord
+            "ordering": "added",  # oldest first
         }
         return [PaperlessDocument.model_validate(d) for d in self._paginate("/documents/", params)]
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def list_documents_with_tag(self, tag_id: int) -> list[PaperlessDocument]:
-        """Retourne les documents qui ONT le tag donné (pour reprocess)."""
+        """Return documents that have the given tag (used for reprocessing)."""
         params: dict[str, Any] = {"tags__id__all": str(tag_id)}
         return [PaperlessDocument.model_validate(d) for d in self._paginate("/documents/", params)]
 
@@ -107,29 +107,27 @@ class PaperlessClient:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def download_document(self, doc_id: int) -> bytes:
-        """Télécharge le PDF original d'un document depuis Paperless."""
+        """Download the original PDF of a document from Paperless."""
         r = self._client.get(f"/documents/{doc_id}/download/", params={"original": "true"})
         r.raise_for_status()
         return r.content
 
     def add_tag(self, doc_id: int, tag_id: int) -> None:
-        """Ajoute un tag à un document sans toucher aux autres tags."""
+        """Add a tag to a document without affecting other existing tags."""
         doc = self.get_document(doc_id)
         if tag_id not in doc.tags:
-            new_tags = [*doc.tags, tag_id]
-            self.patch_document(doc_id, {"tags": new_tags})
+            self.patch_document(doc_id, {"tags": [*doc.tags, tag_id]})
 
     def remove_tag(self, doc_id: int, tag_id: int) -> None:
-        """Retire un tag d'un document (utile pour reprocess)."""
+        """Remove a tag from a document (used for reprocessing)."""
         doc = self.get_document(doc_id)
         if tag_id in doc.tags:
-            new_tags = [t for t in doc.tags if t != tag_id]
-            self.patch_document(doc_id, {"tags": new_tags})
+            self.patch_document(doc_id, {"tags": [t for t in doc.tags if t != tag_id]})
 
-    # ---------------------------------------------------------------- Private
+    # ──────────────────────────────────────────────────────────── Private
 
     def _paginate(self, path: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        """Itère sur toutes les pages d'un endpoint paginé Paperless."""
+        """Iterate over all pages of a paginated Paperless endpoint."""
         params = {**(params or {}), "page_size": 100, "page": 1}
         results: list[dict[str, Any]] = []
         while True:

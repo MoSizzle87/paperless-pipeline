@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: lint · test · build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.11"
+
+      - name: Install dependencies
+        working-directory: classifier
+        run: uv sync --dev
+
+      - name: Lint (ruff)
+        working-directory: classifier
+        run: uv run ruff check src/
+
+      - name: Format check (ruff)
+        working-directory: classifier
+        run: uv run ruff format --check src/
+
+      - name: Type check (mypy)
+        working-directory: classifier
+        run: uv run mypy src/filethat/
+        continue-on-error: true
+
+      - name: Tests
+        working-directory: classifier
+        run: uv run pytest tests/ -v
+        env:
+          PAPERLESS_API_URL: http://localhost:8000
+          PAPERLESS_API_TOKEN: dummy
+          LLM_API_KEY: dummy
+
+      - name: Docker build
+        uses: docker/build-push-action@v6
+        with:
+          context: classifier
+          push: false

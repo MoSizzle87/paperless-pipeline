@@ -1,45 +1,58 @@
-# Whitelist canonique des correspondants fréquents de l'admin FR.
-# Chaque entrée : nom canonique + aliases acceptés (toute variante mappée au canonique).
-# Les aliases sont matchés de manière insensible à la casse et aux accents.
+# Canonical correspondents for French administrative documents.
+# canonical: stable identifier used internally
+# aliases: alternate names mapped to canonical (case and accent insensitive)
+# category: used for filtering and documentation
 
-# ─────────────── Énergie / Utilities ───────────────
+# ── Energy / Utilities ────────────────────────────────────────────
 - canonical: "EDF"
   aliases: ["Électricité de France", "EDF SA", "EDF Commerce", "E.D.F."]
+  category: "energy"
 
 - canonical: "ENGIE"
   aliases: ["GDF", "GDF Suez", "Gaz de France", "Engie Home Services"]
+  category: "energy"
 
 - canonical: "Eau de Paris"
   aliases: ["Régie Eau de Paris"]
+  category: "energy"
 
 - canonical: "Veolia"
   aliases: ["Veolia Eau", "Veolia Environnement"]
+  category: "energy"
 
 - canonical: "Suez"
   aliases: ["Suez Environnement", "Lyonnaise des Eaux"]
+  category: "energy"
 
-# ─────────────── Télécom / Internet ───────────────
+# ── Telecom / Internet ────────────────────────────────────────────
 - canonical: "Orange"
   aliases: ["France Télécom", "Sosh"]
+  category: "telecom"
 
 - canonical: "SFR"
   aliases: ["Numericable", "RED by SFR", "RED"]
+  category: "telecom"
 
 - canonical: "Free"
   aliases: ["Free Mobile", "Free Telecom"]
+  category: "telecom"
 
 - canonical: "Bouygues Telecom"
   aliases: ["Bouygues", "B&You"]
+  category: "telecom"
 
-# ─────────────── Administrations / Sécurité sociale ───────────────
+# ── Public administration / Social security ───────────────────────
 - canonical: "CAF"
   aliases: ["Caisse d'Allocations Familiales", "CAF de Paris", "CAF Paris"]
+  category: "admin"
 
 - canonical: "CPAM"
   aliases: ["Caisse Primaire d'Assurance Maladie", "Assurance Maladie", "Ameli"]
+  category: "admin"
 
 - canonical: "URSSAF"
   aliases: ["URSSAF Île-de-France", "Urssaf"]
+  category: "admin"
 
 - canonical: "DGFiP"
   aliases:
@@ -48,134 +61,147 @@
     - "Trésor Public"
     - "Impôts"
     - "Service des Impôts"
+  category: "admin"
 
 - canonical: "DGI"
   aliases: ["Direction Générale des Impôts"]
+  category: "admin"
 
 - canonical: "France Travail"
   aliases: ["Pole Emploi France Travail"]
+  category: "admin"
 
 - canonical: "Pôle Emploi"
   aliases: ["Pole Emploi"]
+  category: "admin"
 
 - canonical: "ANPE"
   aliases: []
+  category: "admin"
 
 - canonical: "CNAV"
   aliases: ["Caisse Nationale d'Assurance Vieillesse", "Assurance Retraite"]
+  category: "admin"
 
 - canonical: "Agirc-Arrco"
   aliases: ["AGIRC", "ARRCO", "Agirc Arrco"]
+  category: "admin"
 
 - canonical: "MSA"
   aliases: ["Mutualité Sociale Agricole"]
+  category: "admin"
 
-# ─────────────── Banques ───────────────
+# ── Banks ─────────────────────────────────────────────────────────
 - canonical: "BNP Paribas"
   aliases: ["BNP", "BNPP"]
+  category: "bank"
 
 - canonical: "LCL"
   aliases: ["Le Crédit Lyonnais"]
+  category: "bank"
 
 - canonical: "Société Générale"
   aliases: ["SG", "Societe Generale"]
+  category: "bank"
 
 - canonical: "Crédit Agricole"
   aliases: ["CA", "Credit Agricole"]
+  category: "bank"
 
 - canonical: "Crédit Mutuel"
   aliases: ["CM", "Credit Mutuel"]
+  category: "bank"
 
 - canonical: "CIC"
   aliases: ["Crédit Industriel et Commercial"]
+  category: "bank"
 
 - canonical: "La Banque Postale"
   aliases: ["LBP", "Banque Postale"]
+  category: "bank"
 
 - canonical: "BoursoBank"
   aliases: ["Boursorama", "Boursorama Banque"]
+  category: "bank"
 
 - canonical: "Hello bank!"
   aliases: ["Hello Bank", "Hellobank"]
+  category: "bank"
 
 - canonical: "Revolut"
   aliases: []
+  category: "bank"
 
 - canonical: "N26"
   aliases: []
+  category: "bank"
 
 - canonical: "Qonto"
   aliases: []
+  category: "bank"
 
-# ─────────────── Assurances ───────────────
+# ── Insurance ─────────────────────────────────────────────────────
 - canonical: "MAIF"
   aliases: []
+  category: "insurance"
 
 - canonical: "MAAF"
   aliases: []
+  category: "insurance"
 
 - canonical: "MACIF"
   aliases: []
+  category: "insurance"
 
 - canonical: "Matmut"
   aliases: []
+  category: "insurance"
 
 - canonical: "AXA"
   aliases: ["AXA France", "AXA Assurances"]
+  category: "insurance"
 
 - canonical: "Allianz"
   aliases: []
+  category: "insurance"
 
 - canonical: "Groupama"
   aliases: []
+  category: "insurance"
 
 - canonical: "GMF"
   aliases: []
+  category: "insurance"
 
 - canonical: "MMA"
   aliases: []
+  category: "insurance"
 
 - canonical: "Harmonie Mutuelle"
   aliases: []
+  category: "insurance"
 
 - canonical: "MGEN"
   aliases: []
+  category: "insurance"
 
 - canonical: "Malakoff Humanis"
   aliases: ["Malakoff Médéric", "Humanis"]
+  category: "insurance"
 
 - canonical: "Alan"
   aliases: []
+  category: "insurance"
 
-# ─────────────── Logement / Bailleurs Paris ───────────────
-- canonical: "RIVP"
-  aliases:
-    [
-      "Régie Immobilière de la Ville de Paris",
-      "Regie Immobiliere de la Ville de Paris",
-    ]
-
-- canonical: "Paris Habitat"
-  aliases: ["OPAC", "Paris Habitat OPH"]
-
-- canonical: "Elogie-Siemp"
-  aliases: ["Elogie", "SIEMP"]
-
-- canonical: "ICF Habitat"
-  aliases: ["ICF La Sablière", "ICF"]
-
-- canonical: "3F"
-  aliases: ["Seine-Saints-Denis Habitat", "Immobilière 3F"]
-
-- canonical: "CDC Habitat"
-  aliases: ["SNI", "Société Nationale Immobilière"]
-
-# ─────────────── Transport ───────────────
+# ── Transport ─────────────────────────────────────────────────────
 - canonical: "SNCF"
   aliases: ["SNCF Voyageurs", "SNCF Connect"]
+  category: "transport"
 
 - canonical: "RATP"
   aliases: []
+  category: "transport"
 
 - canonical: "Île-de-France Mobilités"
   aliases: ["STIF", "Navigo"]
+  category: "transport"
