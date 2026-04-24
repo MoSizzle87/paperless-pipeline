@@ -211,6 +211,39 @@ def test_openai_sends_correct_tool_schema():
     assert kwargs["tools"][0]["function"]["strict"] is True
 
 
+# --- Prompt caching ---
+
+def test_anthropic_prompt_caching_enabled():
+    config = make_config("anthropic")
+    config.llm.prompt_caching = True
+    classifier = AnthropicClassifier()
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _make_anthropic_response(MOCK_RESULT)
+
+    with patch("anthropic.Anthropic", return_value=mock_client):
+        classifier.classify("text", config)
+
+    kwargs = mock_client.messages.create.call_args[1]
+    assert isinstance(kwargs["system"], list)
+    assert kwargs["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert kwargs["tools"][0]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_anthropic_prompt_caching_disabled():
+    config = make_config("anthropic")
+    config.llm.prompt_caching = False
+    classifier = AnthropicClassifier()
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _make_anthropic_response(MOCK_RESULT)
+
+    with patch("anthropic.Anthropic", return_value=mock_client):
+        classifier.classify("text", config)
+
+    kwargs = mock_client.messages.create.call_args[1]
+    assert isinstance(kwargs["system"], str)
+    assert "cache_control" not in kwargs["tools"][0]
+
+
 # --- factory ---
 
 def test_get_classifier_anthropic():

@@ -280,7 +280,7 @@ Additionally, the pipeline checks `path.exists()` before each per-file operation
 - Process-level mutex via Redis: rejected, requires adding Redis for one lock.
 - Per-file locks: rejected, the sequential nature of the pipeline makes a global lock simpler and equivalent.
 
-**Status.** To implement. Tracked as the first post-MVP fix.
+**Status.** Implemented.
 
 ---
 
@@ -383,7 +383,7 @@ The eval runs both Anthropic and OpenAI in separate columns to support provider 
 - Local LLM (Llama 3, Mistral) via Ollama: rejected for current scope. Adds significant container complexity and GPU dependency for a cost already under $5 per archive.
 - Output token reduction via shorter schema: marginal savings (output is <200 tokens), not worth the readability loss.
 
-**Status.** To implement. Tier 1 roadmap.
+**Status.** Prompt caching implemented; Batch API to implement.
 
 ---
 

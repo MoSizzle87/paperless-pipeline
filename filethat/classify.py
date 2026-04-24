@@ -169,6 +169,15 @@ class AnthropicClassifier:
 
         client = anthropic.Anthropic()
 
+        if config.llm.prompt_caching:
+            system: str | list[dict] = [
+                {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
+            ]
+            tool: dict = {**ANTHROPIC_TOOL, "cache_control": {"type": "ephemeral"}}
+        else:
+            system = SYSTEM_PROMPT
+            tool = ANTHROPIC_TOOL
+
         @tenacity.retry(
             retry=tenacity.retry_if_exception(_is_transient),
             wait=tenacity.wait_exponential(multiplier=1, min=2, max=30),
@@ -180,9 +189,9 @@ class AnthropicClassifier:
                 model=config.llm.model,
                 max_tokens=1024,
                 temperature=config.llm.temperature,
-                system=SYSTEM_PROMPT,
+                system=system,
                 messages=[{"role": "user", "content": _build_user_prompt(text, config)}],
-                tools=[ANTHROPIC_TOOL],
+                tools=[tool],
                 tool_choice={"type": "tool", "name": "classify_document"},
             )
             for block in response.content:

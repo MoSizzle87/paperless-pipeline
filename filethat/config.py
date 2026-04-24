@@ -19,6 +19,7 @@ class LLMConfig(BaseModel):
     temperature: float = 0
     max_pages: int = 5
     max_chars: int = 15000
+    prompt_caching: bool = True
 
 
 class OCRConfig(BaseModel):

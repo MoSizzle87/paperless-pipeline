@@ -6,6 +6,7 @@ llm:
   temperature: 0
   max_pages: 5
   max_chars: 15000
+  prompt_caching: true  # Anthropic only — marks system + tool with cache_control: ephemeral
 
 ocr:
   languages: [fra, eng]

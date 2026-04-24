@@ -26,7 +26,7 @@ def _scan_lock(data_dir: Path) -> Generator[None, None, None]:
         try:
             fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print(f"Another scan is already running (lock file: {lock_path}). Exit.")
+            print(f"Another scan is already running (lock file: {lock_path}). Exiting.")
             sys.exit(1)
         try:
             yield
