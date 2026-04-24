@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ labels.title }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 1rem 0.5rem;
+            background: var(--pico-card-background-color);
+            border: 1px solid var(--pico-muted-border-color);
+            border-radius: var(--pico-border-radius);
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            line-height: 1.1;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--pico-muted-color);
+            margin-top: 0.25rem;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.25rem;
+        }
+        .filter-bar a[role="button"] {
+            padding: 0.35rem 0.9rem;
+            font-size: 0.85rem;
+        }
+        .filter-bar a[role="button"][aria-current="true"] {
+            background: var(--pico-primary);
+            color: var(--pico-primary-inverse);
+            border-color: var(--pico-primary);
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.15em 0.55em;
+            border-radius: 99px;
+            font-size: 0.78em;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+        .badge-success { background: #16a34a; color: #fff; }
+        .badge-error   { background: #dc2626; color: #fff; }
+        .low-conf { color: #d97706; font-weight: 600; }
+        table { font-size: 0.88em; }
+        th { white-space: nowrap; }
+        td { vertical-align: middle; }
+        .action-btn {
+            padding: 0.2em 0.7em;
+            font-size: 0.8em;
+            margin: 0;
+        }
+        .overflow-x { overflow-x: auto; }
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <hgroup style="margin-bottom: 1.5rem;">
+            <h1 style="margin-bottom: 0;">filethat</h1>
+            <p style="margin: 0; color: var(--pico-muted-color);">Document classification pipeline</p>
+        </hgroup>
+
+        <div
+            class="stats-grid"
+            hx-get="/?filter={{ current_filter }}"
+            hx-trigger="every 30s"
+            hx-select=".stats-grid"
+            hx-swap="outerHTML"
+        >
+            <div class="stat-card">
+                <div class="stat-number">{{ total }}</div>
+                <div class="stat-label">{{ labels.total }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color: #16a34a;">{{ success_count }}</div>
+                <div class="stat-label">{{ labels.success }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color: #dc2626;">{{ error_count }}</div>
+                <div class="stat-label">{{ labels.errors }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color: #d97706;">{{ low_conf_count }}</div>
+                <div class="stat-label">{{ labels.low_confidence }}</div>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <a href="/" role="button" class="secondary"
+               {% if current_filter == 'all' %}aria-current="true"{% endif %}>
+                {{ labels.all }}
+            </a>
+            <a href="/?filter=success" role="button" class="secondary"
+               {% if current_filter == 'success' %}aria-current="true"{% endif %}>
+                {{ labels.filter_success }}
+            </a>
+            <a href="/?filter=errors" role="button" class="secondary"
+               {% if current_filter == 'errors' %}aria-current="true"{% endif %}>
+                {{ labels.filter_errors }}
+            </a>
+            <a href="/?filter=low_confidence" role="button" class="secondary"
+               {% if current_filter == 'low_confidence' %}aria-current="true"{% endif %}>
+                {{ labels.filter_low }}
+            </a>
+        </div>
+
+        {% if rows %}
+        <div class="overflow-x">
+            <table>
+                <thead>
+                    <tr>
+                        <th>{{ labels.col_id }}</th>
+                        <th>{{ labels.col_date }}</th>
+                        <th>{{ labels.col_status }}</th>
+                        <th>{{ labels.col_type }}</th>
+                        <th>{{ labels.col_correspondent }}</th>
+                        <th>{{ labels.col_doc_date }}</th>
+                        <th>{{ labels.col_title }}</th>
+                        <th>{{ labels.col_confidence }}</th>
+                        <th>{{ labels.col_actions }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td><code style="font-size:0.8em;">{{ row.id }}</code></td>
+                        <td style="white-space:nowrap;">
+                            {{ row.processed_at[:19] | replace("T", " ") if row.processed_at else "" }}
+                        </td>
+                        <td>
+                            {% if row.status == 'success' %}
+                            <span class="badge badge-success">✓</span>
+                            {% else %}
+                            <span class="badge badge-error">✗</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.document_type }}</td>
+                        <td>{{ row.correspondent }}</td>
+                        <td style="white-space:nowrap;">{{ row.document_date }}</td>
+                        <td>
+                            {% if row.status == 'success' and row.title %}
+                            <a href="/document/{{ row.id }}" target="_blank" rel="noopener">
+                                {{ row.title }}
+                            </a>
+                            {% elif row.status == 'error' %}
+                            <span style="color: var(--pico-muted-color); font-size: 0.9em;">
+                                {{ row.error_stage }}: {{ row.error_message[:80] if row.error_message else "" }}
+                            </span>
+                            {% else %}
+                            {{ row.title }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.confidence %}
+                            {% set conf = row.confidence | float %}
+                            <span {% if conf < 0.7 %}class="low-conf"{% endif %}>
+                                {{ "%.0f%%" | format(conf * 100) }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.status == 'error' %}
+                            <button
+                                class="action-btn secondary"
+                                hx-post="/api/reprocess/{{ row.id }}"
+                                hx-confirm="Move this file back to inbox for reprocessing?"
+                                hx-swap="none"
+                                hx-on::after-request="if(event.detail.successful) window.location.reload()"
+                            >{{ labels.btn_reprocess }}</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="text-align: center; color: var(--pico-muted-color); padding: 3rem 0;">
+            {{ labels.no_documents }}
+        </p>
+        {% endif %}
+    </main>
+</body>
+</html>

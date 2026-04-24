@@ -1,0 +1,104 @@
+language: fr  # fr | en — controls folder names and UI language
+
+llm:
+  provider: anthropic  # anthropic | openai
+  model: claude-sonnet-4-6  # or gpt-4o for OpenAI
+  temperature: 0
+  max_pages: 5
+  max_chars: 15000
+
+ocr:
+  languages: [fra, eng]
+  force_reocr: false  # if true: --force-ocr, else: --skip-text
+  output_type: pdfa   # pdfa | pdf
+
+paths:
+  inbox: /app/data/inbox
+  library: /app/data/library
+  failed: /app/data/failed
+  archive: /app/data/archive
+  journal: /app/data/journal.csv
+
+web:
+  host: 0.0.0.0
+  port: 8000
+
+referential:
+  document_types:
+    - key: identity
+      fr: Identité
+      en: Identity
+    - key: civil_status
+      fr: État civil
+      en: Civil Status
+    - key: legal
+      fr: Juridique
+      en: Legal
+    - key: education
+      fr: Éducation
+      en: Education
+    - key: employment
+      fr: Emploi
+      en: Employment
+    - key: payslip
+      fr: Bulletin de paie
+      en: Payslip
+    - key: tax
+      fr: Fiscal
+      en: Tax
+    - key: banking
+      fr: Banque
+      en: Banking
+    - key: health
+      fr: Santé
+      en: Health
+    - key: insurance
+      fr: Assurance
+      en: Insurance
+    - key: housing
+      fr: Logement
+      en: Housing
+    - key: vehicle
+      fr: Véhicule
+      en: Vehicle
+    - key: invoice
+      fr: Facture
+      en: Invoice
+    - key: admin
+      fr: Administration
+      en: Admin
+    - key: other
+      fr: Autre
+      en: Other
+
+  correspondents:
+    # Energy
+    - EDF
+    - Engie
+    - TotalEnergies
+    # Telecom
+    - Orange
+    - Free
+    - Bouygues Telecom
+    - SFR
+    # Banking
+    - BoursoBank
+    - BNP Paribas
+    - Crédit Agricole
+    - Société Générale
+    - LCL
+    - Revolut
+    # Admin
+    - DGFiP
+    - CAF
+    - CPAM
+    - France Travail
+    - URSSAF
+    # Health
+    - Doctolib
+    - Harmonie Mutuelle
+    - MGEN
+    # Retirement
+    - CARSAT
+    - AGIRC-ARRCO
+    # Add more as needed

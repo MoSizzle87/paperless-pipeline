@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environment
+.env
+*.env.local
+
+# Data (keep structure, not content)
+data/inbox/*
+data/library/*
+data/failed/*
+data/archive/*
+data/review/*
+data/journal.csv
+data/filethat.log
+data/filethat.db
+data/filethat.db-journal
+data/filethat.db-wal
+data/filethat.db-shm
+data/.filethat.lock
+!data/inbox/.gitkeep
+!data/library/.gitkeep
+!data/failed/.gitkeep
+!data/archive/.gitkeep
+!data/review/.gitkeep
+
+# Test fixtures (add your own; don't commit real docs)
+tests/fixtures/*
+!tests/fixtures/.gitkeep
+!tests/fixtures/README.md
+
+# Eval dataset (personal documents, generated reports)
+tests/eval/documents/*.pdf
+tests/eval/report_*.md
+
+# Docker
+.docker/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Build artifacts
+requirements.txt

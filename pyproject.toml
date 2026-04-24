@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "filethat"
+version = "0.1.0"
+description = "OCR, classify, and organize administrative documents"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+    "ocrmypdf>=16.0",
+    "pypdf>=4.2",
+    "img2pdf>=0.5",
+    "pillow>=10.3",
+    "pillow-heif>=0.16",
+    "anthropic>=0.28",
+    "openai>=1.30",
+    "tenacity>=8.3",
+    "python-json-logger>=2.0",
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-mock>=3.14",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+filethat = "filethat.cli:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
