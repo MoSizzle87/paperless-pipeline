@@ -1,4 +1,4 @@
-.PHONY: help install scan ui ui-stop ui-logs stats archive delete-archive clean-failed reset shell test logs
+.PHONY: help install scan ui ui-stop ui-logs stats archive delete-archive clean-failed reset reindex shell test logs
 
 help:
 	@echo "filethat — document classification pipeline"
@@ -13,6 +13,7 @@ help:
 	@echo "  make delete-archive   Delete all archives (confirms)"
 	@echo "  make clean-failed     Delete all failed entries (confirms)"
 	@echo "  make reset            WIPE everything (double confirms)"
+	@echo "  make reindex          Rebuild full-text search index from journal.csv"
 	@echo "  make shell            Open shell inside container"
 	@echo "  make test             Run tests"
 	@echo "  make logs             Show last 100 log lines from latest run"
@@ -47,6 +48,9 @@ clean-failed:
 
 reset:
 	docker compose run --rm filethat reset
+
+reindex:
+	docker compose run --rm filethat reindex
 
 shell:
 	docker compose run --rm --entrypoint /bin/bash filethat

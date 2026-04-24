@@ -322,7 +322,7 @@ The web UI's search uses SQLite; the rest of the pipeline does not depend on it.
 - DuckDB: considered. SQLite chosen for FTS5 maturity and ubiquity; DuckDB is better for analytical queries, which aren't the primary use case here.
 - No index, rely on `ripgrep` over the library: acceptable fallback for power users, not acceptable for a web UI.
 
-**Status.** To implement. Tier 1 roadmap.
+**Status.** Implemented.
 
 ---
 

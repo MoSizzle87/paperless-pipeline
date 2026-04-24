@@ -63,6 +63,10 @@ LABELS = {
         "col_actions": "Actions",
         "btn_reprocess": "Retraiter",
         "no_documents": "Aucun document.",
+        "search_placeholder": "Rechercher dans les documents…",
+        "search_btn": "Rechercher",
+        "search_clear": "Effacer",
+        "search_hint": "Conseil : lancez make reindex pour activer la recherche plein-texte.",
     },
     "en": {
         "title": "filethat — Documents",
@@ -85,6 +89,10 @@ LABELS = {
         "col_actions": "Actions",
         "btn_reprocess": "Reprocess",
         "no_documents": "No documents found.",
+        "search_placeholder": "Search documents…",
+        "search_btn": "Search",
+        "search_clear": "Clear",
+        "search_hint": "Tip: run make reindex to enable full-text search.",
     },
 }
 
@@ -102,6 +110,7 @@ def create_app(config: Config) -> FastAPI:
     review_dir = config.paths.review
     review_dir.mkdir(parents=True, exist_ok=True)
     feedback_path = config.paths.journal.parent / "review_feedback.jsonl"
+    db_path = config.paths.journal.parent / "filethat.db"
 
     def read_journal() -> list[dict]:
         path = config.paths.journal
@@ -110,8 +119,81 @@ def create_app(config: Config) -> FastAPI:
         with open(path, newline="") as f:
             return list(csv.DictReader(f))
 
+    def _make_journal() -> Journal:
+        return Journal(config.paths.journal, db_path=db_path)
+
     @app.get("/")
-    async def index(request: Request, filter: Optional[str] = None):
+    async def index(
+        request: Request,
+        filter: Optional[str] = None,
+        q: Optional[str] = None,
+        document_type: Optional[str] = None,
+        correspondent: Optional[str] = None,
+    ):
+        labels = LABELS.get(config.language, LABELS["en"])
+
+        if q or document_type or correspondent:
+            # Full-text / metadata search via SQLite
+            search_active = True
+            db_available = db_path.exists()
+            if db_available:
+                from filethat.index import open_db, search as db_search
+
+                with open_db(db_path) as conn:
+                    rows = db_search(
+                        conn,
+                        q or "",
+                        filters={
+                            "document_type": document_type or "",
+                            "correspondent": correspondent or "",
+                        },
+                    )
+            else:
+                # Graceful fallback: substring match on CSV data
+                q_lower = (q or "").lower()
+                all_rows = read_journal()
+                rows = [
+                    r
+                    for r in all_rows
+                    if q_lower in (
+                        r.get("title", "")
+                        + " "
+                        + r.get("correspondent", "")
+                        + " "
+                        + r.get("source_filename", "")
+                        + " "
+                        + r.get("document_type", "")
+                    ).lower()
+                    and (not document_type or r.get("document_type") == document_type)
+                    and (not correspondent or correspondent.lower() in r.get("correspondent", "").lower())
+                ]
+                rows = list(reversed(rows))
+
+            all_rows_for_stats = read_journal()
+            total = len(all_rows_for_stats)
+            success_count = sum(1 for r in all_rows_for_stats if r["status"] == "success")
+            error_count = sum(1 for r in all_rows_for_stats if r["status"] == "error")
+            low_conf_count = sum(
+                1 for r in all_rows_for_stats if r["status"] == "success" and _conf(r) < 0.7
+            )
+
+            return templates.TemplateResponse(
+                request=request,
+                name="index.html",
+                context={
+                    "rows": rows,
+                    "total": total,
+                    "success_count": success_count,
+                    "error_count": error_count,
+                    "low_conf_count": low_conf_count,
+                    "current_filter": "all",
+                    "labels": labels,
+                    "q": q or "",
+                    "search_active": True,
+                    "db_available": db_path.exists(),
+                },
+            )
+
         rows = read_journal()
 
         total = len(rows)
@@ -142,7 +224,10 @@ def create_app(config: Config) -> FastAPI:
                 "error_count": error_count,
                 "low_conf_count": low_conf_count,
                 "current_filter": filter or "all",
-                "labels": LABELS.get(config.language, LABELS["en"]),
+                "labels": labels,
+                "q": "",
+                "search_active": False,
+                "db_available": db_path.exists(),
             },
         )
 
@@ -195,7 +280,7 @@ def create_app(config: Config) -> FastAPI:
         target = organize(pdf_path, result, config)
         sfile.unlink()
 
-        journal = Journal(config.paths.journal)
+        journal = _make_journal()
         journal.append(
             JournalEntry(
                 id=Journal.new_id(),
@@ -262,7 +347,7 @@ def create_app(config: Config) -> FastAPI:
         target = organize(pdf_path, result, config)
         sfile.unlink()
 
-        journal = Journal(config.paths.journal)
+        journal = _make_journal()
         journal.append(
             JournalEntry(
                 id=Journal.new_id(),

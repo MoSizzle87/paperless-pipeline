@@ -13,6 +13,7 @@ from pathlib import Path
 from filethat.classify import ClassificationResult, get_classifier
 from filethat.config import Config
 from filethat.extract import extract_text
+from filethat.index import _read_pdf_text
 from filethat.journal import Journal, JournalEntry
 from filethat.normalize import normalize
 from filethat.organize import build_stem, organize
@@ -102,12 +103,15 @@ def process_file(path: Path, config: Config, journal: Journal) -> None:
 
     error_stage = ""
     ocr_pdf: Path | None = None
+    full_ocr_text = ""
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         try:
             error_stage = "normalize"
             ocr_pdf, ocr_skipped = normalize(path, config, tmp_dir)
+
+            full_ocr_text = _read_pdf_text(ocr_pdf)
 
             error_stage = "extract"
             text = extract_text(ocr_pdf, config)
@@ -162,7 +166,8 @@ def process_file(path: Path, config: Config, journal: Journal) -> None:
                     new_correspondent=result.new_correspondent,
                     ocr_skipped=ocr_skipped,
                     processing_duration_seconds=round(duration, 2),
-                )
+                ),
+                ocr_text=full_ocr_text,
             )
 
             path.unlink()

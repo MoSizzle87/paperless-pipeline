@@ -48,7 +48,8 @@ def cmd_scan(config: Config) -> None:
             print("Nothing to process.")
             return
 
-        journal = Journal(config.paths.journal)
+        db_path = config.paths.journal.parent / "filethat.db"
+        journal = Journal(config.paths.journal, db_path=db_path)
 
         # Pre-filter: compute hashes up-front and skip already-journaled files
         # before spending time on OCR.
@@ -196,6 +197,59 @@ def cmd_reset(config: Config, yes: bool) -> None:
     print("Reset complete.")
 
 
+def cmd_reindex(config: Config) -> None:
+    import csv as _csv
+
+    from tqdm import tqdm
+
+    from filethat.index import _read_pdf_text, index_document, init_db, open_db
+
+    db_path = config.paths.journal.parent / "filethat.db"
+    journal_path = config.paths.journal
+
+    if db_path.exists():
+        db_path.unlink()
+        print(f"Removed existing index: {db_path}")
+
+    init_db(db_path)
+
+    if not journal_path.exists():
+        print("No journal found. Index created but empty.")
+        return
+
+    with open(journal_path, newline="") as f:
+        rows = list(_csv.DictReader(f))
+
+    if not rows:
+        print("Journal is empty. Index created but empty.")
+        return
+
+    count = 0
+    errors = 0
+    with open_db(db_path) as conn:
+        for row in tqdm(rows, desc="Reindexing", unit="doc"):
+            ocr_text = ""
+            target_path = row.get("target_path", "")
+            if target_path:
+                p = Path(target_path)
+                if p.exists() and p.suffix.lower() == ".pdf":
+                    ocr_text = _read_pdf_text(p)
+            try:
+                index_document(conn, row, ocr_text)
+                count += 1
+            except Exception as exc:
+                logger.warning(
+                    "Could not index document during reindex",
+                    extra={"id": row.get("id"), "error": str(exc)},
+                )
+                errors += 1
+
+    msg = f"Indexed {count} / {len(rows)} document(s)."
+    if errors:
+        msg += f" {errors} error(s) — see logs for details."
+    print(msg)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="filethat",
@@ -211,6 +265,7 @@ def main() -> None:
     sub.add_parser("ui", help="Launch web UI")
     sub.add_parser("stats", help="Print journal summary")
     sub.add_parser("archive", help="Move library/ into timestamped archive/")
+    sub.add_parser("reindex", help="Rebuild full-text search index from journal.csv")
 
     p = sub.add_parser("delete-archive", help="Delete all archives")
     p.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
@@ -242,6 +297,8 @@ def main() -> None:
             cmd_stats(config)
         case "archive":
             cmd_archive(config)
+        case "reindex":
+            cmd_reindex(config)
         case "delete-archive":
             cmd_delete_archive(config, args.yes)
         case "clean-failed":

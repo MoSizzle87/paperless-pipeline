@@ -106,6 +106,21 @@
             </div>
         </div>
 
+        <form method="get" action="/" style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+            <input type="search" name="q" placeholder="{{ labels.search_placeholder }}"
+                   value="{{ q }}" style="flex: 1; margin: 0;" aria-label="{{ labels.search_placeholder }}">
+            <button type="submit" style="margin: 0; white-space: nowrap;">{{ labels.search_btn }}</button>
+            {% if q %}
+            <a href="/" role="button" class="secondary" style="margin: 0; white-space: nowrap;">{{ labels.search_clear }}</a>
+            {% endif %}
+        </form>
+        {% if q and not db_available %}
+        <p style="font-size: 0.85em; color: var(--pico-muted-color); margin-bottom: 0.75rem;">
+            ⚠ {{ labels.search_hint }}
+        </p>
+        {% endif %}
+
+        {% if not search_active %}
         <div class="filter-bar">
             <a href="/" role="button" class="secondary"
                {% if current_filter == 'all' %}aria-current="true"{% endif %}>
@@ -124,6 +139,7 @@
                 {{ labels.filter_low }}
             </a>
         </div>
+        {% endif %}
 
         {% if rows %}
         <div class="overflow-x">
