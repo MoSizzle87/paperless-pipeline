@@ -1,16 +1,45 @@
 from __future__ import annotations
 
 import csv
+import json
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from filethat.classify import ClassificationResult
 from filethat.config import Config
+from filethat.journal import Journal, JournalEntry
+from filethat.organize import organize
+
+_SUFFIX = ".suggestion.json"
+
+
+def _load_review_items(review_dir: Path) -> list[dict]:
+    items = []
+    if not review_dir.exists():
+        return items
+    for sfile in sorted(review_dir.glob(f"*.pdf{_SUFFIX}")):
+        pdf_name = sfile.name[: -len(_SUFFIX)]
+        pdf_path = review_dir / pdf_name
+        if pdf_path.exists():
+            try:
+                data = json.loads(sfile.read_text())
+                items.append({"pdf_name": pdf_name, "suggestion": data})
+            except Exception:
+                pass
+    return items
+
+
+def _log_feedback(feedback_path: Path, entry: dict) -> None:
+    with open(feedback_path, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
 
 LABELS = {
     "fr": {
@@ -70,6 +99,10 @@ def create_app(config: Config) -> FastAPI:
     library_path.mkdir(parents=True, exist_ok=True)
     app.mount("/library", StaticFiles(directory=str(library_path)), name="library")
 
+    review_dir = config.paths.review
+    review_dir.mkdir(parents=True, exist_ok=True)
+    feedback_path = config.paths.journal.parent / "review_feedback.jsonl"
+
     def read_journal() -> list[dict]:
         path = config.paths.journal
         if not path.exists():
@@ -127,6 +160,172 @@ def create_app(config: Config) -> FastAPI:
             raise HTTPException(status_code=404, detail="File not found on disk")
 
         return FileResponse(str(target_path), media_type="application/pdf")
+
+    @app.get("/review")
+    async def review_page(request: Request):
+        items = _load_review_items(review_dir)
+        return templates.TemplateResponse(
+            request=request,
+            name="review.html",
+            context={
+                "items": items,
+                "review_count": len(items),
+                "labels": LABELS.get(config.language, LABELS["en"]),
+            },
+        )
+
+    @app.get("/review/pdf/{filename:path}")
+    async def serve_review_pdf(filename: str):
+        pdf_path = review_dir / filename
+        if not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="Review file not found")
+        return FileResponse(str(pdf_path), media_type="application/pdf")
+
+    @app.post("/api/review/accept/{filename:path}")
+    async def review_accept(filename: str):
+        sfile = review_dir / (filename + _SUFFIX)
+        pdf_path = review_dir / filename
+        if not sfile.exists() or not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="Review item not found")
+
+        data = json.loads(sfile.read_text())
+        result = ClassificationResult.model_validate(
+            {k: data[k] for k in ClassificationResult.model_fields if k in data}
+        )
+        target = organize(pdf_path, result, config)
+        sfile.unlink()
+
+        journal = Journal(config.paths.journal)
+        journal.append(
+            JournalEntry(
+                id=Journal.new_id(),
+                hash_sha256=data.get("hash_sha256", ""),
+                source_filename=data.get("source_filename", filename),
+                source_size_bytes=int(data.get("source_size_bytes", 0)),
+                processed_at=datetime.now(timezone.utc).isoformat(),
+                status="success",
+                document_type=result.document_type,
+                correspondent=result.correspondent,
+                document_date=result.document_date or "",
+                title=result.title,
+                target_path=str(target),
+                llm_provider=data.get("llm_provider", ""),
+                llm_model=data.get("llm_model", ""),
+                confidence=result.confidence,
+                language=result.language,
+                new_correspondent=result.new_correspondent,
+                ocr_skipped=bool(data.get("ocr_skipped", False)),
+                processing_duration_seconds=float(data.get("processing_duration_seconds", 0)),
+            )
+        )
+        _log_feedback(
+            feedback_path,
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "id": data.get("id"),
+                "source_filename": data.get("source_filename"),
+                "original_suggestion": data,
+                "user_action": "accept",
+                "final_values": result.model_dump(),
+            },
+        )
+        return JSONResponse({"status": "ok", "target": str(target)})
+
+    @app.post("/api/review/edit/{filename:path}")
+    async def review_edit(
+        filename: str,
+        document_type: str = Form(...),
+        correspondent: str = Form(...),
+        document_date: str = Form(""),
+        title: str = Form(...),
+        language: str = Form("fr"),
+        new_correspondent: bool = Form(False),
+    ):
+        sfile = review_dir / (filename + _SUFFIX)
+        pdf_path = review_dir / filename
+        if not sfile.exists() or not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="Review item not found")
+
+        data = json.loads(sfile.read_text())
+        result = ClassificationResult.model_validate(
+            {
+                "document_type": document_type,
+                "correspondent": correspondent,
+                "document_date": document_date or None,
+                "title": title,
+                "language": language,
+                "confidence": float(data.get("confidence", 0)),
+                "reasoning": data.get("reasoning", ""),
+                "new_correspondent": new_correspondent,
+            }
+        )
+        target = organize(pdf_path, result, config)
+        sfile.unlink()
+
+        journal = Journal(config.paths.journal)
+        journal.append(
+            JournalEntry(
+                id=Journal.new_id(),
+                hash_sha256=data.get("hash_sha256", ""),
+                source_filename=data.get("source_filename", filename),
+                source_size_bytes=int(data.get("source_size_bytes", 0)),
+                processed_at=datetime.now(timezone.utc).isoformat(),
+                status="success",
+                document_type=result.document_type,
+                correspondent=result.correspondent,
+                document_date=result.document_date or "",
+                title=result.title,
+                target_path=str(target),
+                llm_provider=data.get("llm_provider", ""),
+                llm_model=data.get("llm_model", ""),
+                confidence=result.confidence,
+                language=result.language,
+                new_correspondent=result.new_correspondent,
+                ocr_skipped=bool(data.get("ocr_skipped", False)),
+                processing_duration_seconds=float(data.get("processing_duration_seconds", 0)),
+            )
+        )
+        _log_feedback(
+            feedback_path,
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "id": data.get("id"),
+                "source_filename": data.get("source_filename"),
+                "original_suggestion": data,
+                "user_action": "edit",
+                "final_values": result.model_dump(),
+            },
+        )
+        return JSONResponse({"status": "ok", "target": str(target)})
+
+    @app.post("/api/review/reject/{filename:path}")
+    async def review_reject(filename: str):
+        sfile = review_dir / (filename + _SUFFIX)
+        pdf_path = review_dir / filename
+        if not sfile.exists() or not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="Review item not found")
+
+        data = json.loads(sfile.read_text())
+        failed_dir = config.paths.failed / (data.get("id", "unknown") + "_rejected")
+        failed_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(pdf_path), str(failed_dir / filename))
+        (failed_dir / "error.json").write_text(
+            json.dumps({"stage": "user_rejected", "reason": "User rejected review"}, indent=2)
+        )
+        sfile.unlink()
+
+        _log_feedback(
+            feedback_path,
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "id": data.get("id"),
+                "source_filename": data.get("source_filename"),
+                "original_suggestion": data,
+                "user_action": "reject",
+                "final_values": None,
+            },
+        )
+        return JSONResponse({"status": "ok"})
 
     @app.post("/api/reprocess/{doc_id}")
     async def reprocess(doc_id: str):

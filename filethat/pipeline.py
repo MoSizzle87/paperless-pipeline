@@ -10,14 +10,69 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from filethat.classify import get_classifier
+from filethat.classify import ClassificationResult, get_classifier
 from filethat.config import Config
 from filethat.extract import extract_text
 from filethat.journal import Journal, JournalEntry
 from filethat.normalize import normalize
-from filethat.organize import organize
+from filethat.organize import build_stem, organize
 
 logger = logging.getLogger(__name__)
+
+
+def _route_to_review(
+    ocr_pdf: Path,
+    result: ClassificationResult,
+    config: Config,
+    entry_id: str,
+    file_hash: str,
+    source_filename: str,
+    source_size_bytes: int,
+    processed_at: str,
+    llm_provider: str,
+    llm_model: str,
+    ocr_skipped: bool,
+    processing_duration_seconds: float,
+) -> Path:
+    review_dir = config.paths.review
+    review_dir.mkdir(parents=True, exist_ok=True)
+
+    stem = build_stem(result, config)
+    candidate = review_dir / f"{stem}.pdf"
+    for i in range(2, 10000):
+        if not candidate.exists():
+            break
+        candidate = review_dir / f"{stem}_{i}.pdf"
+
+    shutil.move(str(ocr_pdf), str(candidate))
+
+    suggestion = {
+        "id": entry_id,
+        "hash_sha256": file_hash,
+        "source_filename": source_filename,
+        "source_size_bytes": source_size_bytes,
+        "processed_at": processed_at,
+        "llm_provider": llm_provider,
+        "llm_model": llm_model,
+        "ocr_skipped": ocr_skipped,
+        "processing_duration_seconds": processing_duration_seconds,
+        "document_type": result.document_type,
+        "correspondent": result.correspondent,
+        "document_date": result.document_date,
+        "title": result.title,
+        "confidence": result.confidence,
+        "reasoning": result.reasoning,
+        "language": result.language,
+        "new_correspondent": result.new_correspondent,
+    }
+    (candidate.parent / (candidate.name + ".suggestion.json")).write_text(
+        json.dumps(suggestion, indent=2)
+    )
+    logger.info(
+        "Routed to review (low confidence)",
+        extra={"id": entry_id, "confidence": result.confidence, "target": str(candidate)},
+    )
+    return candidate
 
 
 def _sha256(path: Path) -> str:
@@ -62,11 +117,31 @@ def process_file(path: Path, config: Config, journal: Journal) -> None:
             result = classifier.classify(text, config)
 
             error_stage = "organize"
-            target = organize(ocr_pdf, result, config)
+            duration = time.monotonic() - start_time
+            is_review = (
+                config.review.enabled
+                and result.confidence < config.review.confidence_threshold
+            )
+            if is_review:
+                target = _route_to_review(
+                    ocr_pdf,
+                    result,
+                    config,
+                    entry_id=entry_id,
+                    file_hash=file_hash,
+                    source_filename=path.name,
+                    source_size_bytes=source_size,
+                    processed_at=processed_at,
+                    llm_provider=config.llm.provider,
+                    llm_model=config.llm.model,
+                    ocr_skipped=ocr_skipped,
+                    processing_duration_seconds=round(duration, 2),
+                )
+            else:
+                target = organize(ocr_pdf, result, config)
             ocr_pdf = None  # moved; don't preserve on error
 
             error_stage = "journal"
-            duration = time.monotonic() - start_time
             journal.append(
                 JournalEntry(
                     id=entry_id,
@@ -74,7 +149,7 @@ def process_file(path: Path, config: Config, journal: Journal) -> None:
                     source_filename=path.name,
                     source_size_bytes=source_size,
                     processed_at=processed_at,
-                    status="success",
+                    status="review" if is_review else "success",
                     document_type=result.document_type,
                     correspondent=result.correspondent,
                     document_date=result.document_date or "",
@@ -92,7 +167,7 @@ def process_file(path: Path, config: Config, journal: Journal) -> None:
 
             path.unlink()
             logger.info(
-                "Processed successfully",
+                "Processed successfully" if not is_review else "Routed to review",
                 extra={"id": entry_id, "target": str(target)},
             )
 

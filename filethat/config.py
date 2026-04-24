@@ -33,6 +33,7 @@ class PathsConfig(BaseModel):
     library: Path = Path("/app/data/library")
     failed: Path = Path("/app/data/failed")
     archive: Path = Path("/app/data/archive")
+    review: Path = Path("/app/data/review")
     journal: Path = Path("/app/data/journal.csv")
 
 
@@ -46,12 +47,18 @@ class ReferentialConfig(BaseModel):
     correspondents: list[str] = []
 
 
+class ReviewConfig(BaseModel):
+    enabled: bool = True
+    confidence_threshold: float = 0.7
+
+
 class Config(BaseModel):
     language: Literal["fr", "en"] = "fr"
     llm: LLMConfig = LLMConfig()
     ocr: OCRConfig = OCRConfig()
     paths: PathsConfig = PathsConfig()
     web: WebConfig = WebConfig()
+    review: ReviewConfig = ReviewConfig()
     referential: ReferentialConfig = ReferentialConfig()
 
     @classmethod

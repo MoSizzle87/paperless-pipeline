@@ -39,6 +39,7 @@ def cmd_scan(config: Config) -> None:
     from filethat.pipeline import _sha256, process_file
 
     data_dir = config.paths.journal.parent
+    config.paths.review.mkdir(parents=True, exist_ok=True)
     with _scan_lock(data_dir):
         inbox = config.paths.inbox
         files = sorted(f for f in inbox.iterdir() if f.is_file() and not f.name.startswith("."))
@@ -89,7 +90,7 @@ def cmd_stats(config: Config) -> None:
         print("No journal found.")
         return
 
-    total = success = errors = low_conf = 0
+    total = success = errors = low_conf = review = 0
     with open(journal_path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -101,13 +102,16 @@ def cmd_stats(config: Config) -> None:
                         low_conf += 1
                 except ValueError:
                     pass
+            elif row["status"] == "review":
+                review += 1
             else:
                 errors += 1
 
     print(f"Total:          {total}")
     print(f"Success:        {success}")
+    print(f"Review:         {review}")
     print(f"Errors:         {errors}")
-    print(f"Low confidence: {low_conf} (< 0.7)")
+    print(f"Low confidence: {low_conf} (< 0.7, among successes)")
 
 
 def cmd_archive(config: Config) -> None:

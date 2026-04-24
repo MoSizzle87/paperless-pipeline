@@ -300,7 +300,7 @@ Rejected or incorrect classifications are captured as signal for future prompt i
 - Auto-classify then flag for post-hoc review: rejected. Once a file is in `library/`, users rarely re-check it.
 - Run two LLM calls and require agreement: rejected as doubling cost for a problem that has a better solution (human review).
 
-**Status.** To implement. Tier 1 roadmap.
+**Status.** Implemented.
 
 ---
 

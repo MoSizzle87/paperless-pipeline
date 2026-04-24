@@ -18,26 +18,27 @@ def slugify(text: str, max_len: int = 40) -> str:
     return text[:max_len].rstrip("-")
 
 
-def build_target_path(
-    result: ClassificationResult,
-    config: Config,
-) -> Path:
+def _resolve_type_label(result: ClassificationResult, config: Config) -> str:
+    label = config.get_type_label(result.document_type)
+    if label == result.document_type == "other":
+        return "Autre" if config.language == "fr" else "Other"
+    return label
+
+
+def build_stem(result: ClassificationResult, config: Config) -> str:
     date = result.document_date[:7] if result.document_date else ""
-
-    type_label = config.get_type_label(result.document_type)
-    if type_label == result.document_type == "other":
-        type_label = "Autre" if config.language == "fr" else "Other"
-
+    type_label = _resolve_type_label(result, config)
     raw_correspondent = result.correspondent or ""
     if raw_correspondent.lower() == "unknown":
         raw_correspondent = ""
     correspondent = slugify(raw_correspondent) if raw_correspondent else ""
-
     title_slug = slugify(result.title) or "document"
+    return "_".join([s for s in [date, type_label, correspondent, title_slug] if s])
 
-    stem = "_".join([s for s in [date, type_label, correspondent, title_slug] if s])
 
-    target_dir = config.paths.library / type_label
+def build_target_path(result: ClassificationResult, config: Config) -> Path:
+    stem = build_stem(result, config)
+    target_dir = config.paths.library / _resolve_type_label(result, config)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     candidate = target_dir / f"{stem}.pdf"

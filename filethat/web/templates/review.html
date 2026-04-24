@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>filethat — Review</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .review-card {
+            border: 1px solid var(--pico-muted-border-color);
+            border-radius: var(--pico-border-radius);
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            background: var(--pico-card-background-color);
+        }
+        .review-card h3 { margin-bottom: 0.5rem; font-size: 1rem; }
+        .suggestion-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.4rem 1.5rem;
+            font-size: 0.88em;
+            margin-bottom: 1rem;
+        }
+        .suggestion-grid dt { color: var(--pico-muted-color); margin: 0; }
+        .suggestion-grid dd { margin: 0; font-weight: 500; }
+        .conf-low { color: #d97706; font-weight: 700; }
+        .action-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+        .action-row button { margin: 0; padding: 0.35rem 0.9rem; font-size: 0.85rem; }
+        .edit-form { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--pico-muted-border-color); }
+        .edit-form label { font-size: 0.85em; }
+        .edit-form input, .edit-form select { margin-bottom: 0.5rem; }
+        .edit-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 1rem;
+        }
+        @media (max-width: 600px) {
+            .suggestion-grid, .edit-grid { grid-template-columns: 1fr; }
+        }
+        nav a[role="button"][aria-current="true"] {
+            background: var(--pico-primary);
+            color: var(--pico-primary-inverse);
+            border-color: var(--pico-primary);
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <hgroup style="margin-bottom: 1rem;">
+            <h1 style="margin-bottom: 0;">filethat</h1>
+            <p style="margin: 0; color: var(--pico-muted-color);">Document classification pipeline</p>
+        </hgroup>
+        <nav style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+            <a href="/" role="button" class="secondary">Documents</a>
+            <a href="/review" role="button" aria-current="true">
+                Review
+                {% if review_count > 0 %}
+                <span style="margin-left: 0.4em; background: #d97706; color: #fff;
+                             border-radius: 99px; padding: 0.05em 0.5em; font-size: 0.8em;">
+                    {{ review_count }}
+                </span>
+                {% endif %}
+            </a>
+        </nav>
+
+        {% if items %}
+        {% for item in items %}
+        {% set s = item.suggestion %}
+        {% set fn = item.pdf_name %}
+        <div class="review-card" id="card-{{ loop.index }}">
+            <h3>
+                <a href="/review/pdf/{{ fn }}" target="_blank" rel="noopener">{{ fn }}</a>
+            </h3>
+            <dl class="suggestion-grid">
+                <dt>Type</dt>
+                <dd>{{ s.document_type }}</dd>
+                <dt>Correspondent</dt>
+                <dd>{{ s.correspondent }}</dd>
+                <dt>Date</dt>
+                <dd>{{ s.document_date or "—" }}</dd>
+                <dt>Language</dt>
+                <dd>{{ s.language }}</dd>
+                <dt>Title</dt>
+                <dd>{{ s.title }}</dd>
+                <dt>Confidence</dt>
+                <dd>
+                    <span class="conf-low">{{ "%.0f%%" | format(s.confidence * 100) }}</span>
+                </dd>
+                <dt>Reasoning</dt>
+                <dd style="grid-column: span 1;">{{ s.reasoning }}</dd>
+            </dl>
+
+            <div class="action-row">
+                <button
+                    hx-post="/api/review/accept/{{ fn }}"
+                    hx-confirm="Accept this classification and move to library?"
+                    hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful) document.getElementById('card-{{ loop.index }}').remove()"
+                >Accept</button>
+                <button
+                    class="secondary"
+                    onclick="document.getElementById('edit-{{ loop.index }}').style.display =
+                             document.getElementById('edit-{{ loop.index }}').style.display === 'none' ? 'block' : 'none'"
+                >Edit</button>
+                <button
+                    class="secondary"
+                    style="color: #dc2626; border-color: #dc2626;"
+                    hx-post="/api/review/reject/{{ fn }}"
+                    hx-confirm="Reject this document and move to failed/?"
+                    hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful) document.getElementById('card-{{ loop.index }}').remove()"
+                >Reject</button>
+            </div>
+
+            <div id="edit-{{ loop.index }}" class="edit-form" style="display: none;">
+                <form
+                    hx-post="/api/review/edit/{{ fn }}"
+                    hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful) document.getElementById('card-{{ loop.index }}').remove()"
+                >
+                    <div class="edit-grid">
+                        <label>
+                            Type
+                            <input type="text" name="document_type" value="{{ s.document_type }}" required>
+                        </label>
+                        <label>
+                            Correspondent
+                            <input type="text" name="correspondent" value="{{ s.correspondent }}" required>
+                        </label>
+                        <label>
+                            Date (YYYY-MM-DD)
+                            <input type="text" name="document_date" value="{{ s.document_date or '' }}">
+                        </label>
+                        <label>
+                            Language
+                            <select name="language">
+                                <option value="fr" {% if s.language == 'fr' %}selected{% endif %}>fr</option>
+                                <option value="en" {% if s.language == 'en' %}selected{% endif %}>en</option>
+                                <option value="other" {% if s.language == 'other' %}selected{% endif %}>other</option>
+                            </select>
+                        </label>
+                        <label style="grid-column: span 2;">
+                            Title
+                            <input type="text" name="title" value="{{ s.title }}" required>
+                        </label>
+                    </div>
+                    <button type="submit">Accept with edits</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="text-align: center; color: var(--pico-muted-color); padding: 3rem 0;">
+            No documents pending review.
+        </p>
+        {% endif %}
+    </main>
+</body>
+</html>
