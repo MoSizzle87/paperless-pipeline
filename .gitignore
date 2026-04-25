@@ -55,3 +55,6 @@ tests/eval/report_*.md
 
 # Build artifacts
 requirements.txt
+
+# Claude Code local settings (per-machine)
+.claude/settings.local.json
