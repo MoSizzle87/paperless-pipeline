@@ -364,7 +364,7 @@ The eval runs both Anthropic and OpenAI in separate columns to support provider 
 - Automated eval via LLM-as-judge: rejected as circular when the pipeline itself is LLM-based.
 - Crowdsourced ground truth: rejected, privacy constraints on real administrative documents.
 
-**Status.** To implement. Tier 1 roadmap.
+**Status.** Implemented.
 
 ---
 

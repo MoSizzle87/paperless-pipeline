@@ -197,6 +197,25 @@ def cmd_reset(config: Config, yes: bool) -> None:
     print("Reset complete.")
 
 
+def cmd_eval(config: Config, providers: list[str] | None, dataset: Path) -> None:
+    from filethat.eval import format_terminal_summary, run_eval
+
+    if not dataset.exists():
+        print(f"Eval dataset not found: {dataset}")
+        return
+    if not (dataset / "golden.json").exists():
+        print(f"No golden.json found in {dataset}")
+        return
+
+    effective_providers = providers or [config.llm.provider]
+    print(f"Running eval for provider(s): {', '.join(effective_providers)}")
+    reports, models = run_eval(dataset, effective_providers, config)
+    print(format_terminal_summary(reports, models))
+    ts_glob = list(dataset.glob("report_*.md"))
+    if ts_glob:
+        print(f"\nReport: {sorted(ts_glob)[-1]}")
+
+
 def cmd_reindex(config: Config) -> None:
     import csv as _csv
 
@@ -276,6 +295,22 @@ def main() -> None:
     p = sub.add_parser("reset", help="WIPE everything (double confirmation)")
     p.add_argument("--yes", action="store_true", help="Skip first confirmation")
 
+    p = sub.add_parser("eval", help="Run quality eval on tests/eval/ dataset")
+    p.add_argument(
+        "--providers",
+        type=lambda s: [x.strip() for x in s.split(",")],
+        default=None,
+        metavar="PROVIDER[,PROVIDER]",
+        help="Comma-separated providers to evaluate (default: config provider)",
+    )
+    p.add_argument(
+        "--dataset",
+        type=Path,
+        default=Path("tests/eval"),
+        metavar="PATH",
+        help="Path to eval dataset directory (default: tests/eval)",
+    )
+
     args = parser.parse_args()
 
     log_level = os.environ.get("LOG_LEVEL", "INFO")
@@ -305,3 +340,5 @@ def main() -> None:
             cmd_clean_failed(config, args.yes)
         case "reset":
             cmd_reset(config, args.yes)
+        case "eval":
+            cmd_eval(config, args.providers, args.dataset)

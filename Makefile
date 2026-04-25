@@ -1,4 +1,4 @@
-.PHONY: help install scan ui ui-stop ui-logs stats archive delete-archive clean-failed reset reindex shell test logs
+.PHONY: help install scan ui ui-stop ui-logs stats archive delete-archive clean-failed reset reindex shell test logs eval
 
 help:
 	@echo "filethat — document classification pipeline"
@@ -16,6 +16,7 @@ help:
 	@echo "  make reindex          Rebuild full-text search index from journal.csv"
 	@echo "  make shell            Open shell inside container"
 	@echo "  make test             Run tests"
+	@echo "  make eval             Run quality eval on tests/eval/ dataset"
 	@echo "  make logs             Show last 100 log lines from latest run"
 
 install:
@@ -58,6 +59,11 @@ shell:
 test:
 	docker build --target test-builder -t filethat-test . && \
 	docker run --rm filethat-test /app/.venv/bin/pytest tests/ -v
+
+eval:
+	docker compose run --rm \
+		-v $(PWD)/tests/eval:/app/tests/eval \
+		filethat eval
 
 logs:
 	@tail -n 100 data/filethat.log 2>/dev/null || echo "No logs yet."
